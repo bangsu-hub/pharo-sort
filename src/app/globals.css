@@ -1,0 +1,64 @@
+/* 한글 폰트 */
+@import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --color-accent: #4F46E5;
+}
+
+body {
+  @apply bg-gray-50 text-gray-800;
+  font-family: 'Pretendard', 'Noto Sans KR', sans-serif;
+}
+
+/* 스프레드시트 스타일 테이블 */
+.grid-table {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: 13px;
+}
+
+.grid-table thead th {
+  @apply bg-gray-100 text-gray-600 font-semibold text-left px-3 py-2 border border-gray-300 whitespace-nowrap;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.grid-table tbody td {
+  @apply px-3 py-2 border border-gray-200 align-middle;
+}
+
+/* 행 상태별 색상 */
+.row-overdue   { @apply bg-red-50; }
+.row-done      { @apply bg-gray-50 text-gray-400; }
+.row-normal    { @apply bg-white; }
+.row-normal:hover { @apply bg-blue-50; }
+.row-overdue:hover { @apply bg-red-100; }
+
+/* 지연 배지 */
+.badge-delay {
+  @apply inline-block text-xs font-bold bg-red-500 text-white rounded px-1 py-0.5 ml-1;
+}
+
+/* 스크롤바 스타일 */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: #f1f5f9; }
+::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+
+/* 모달 오버레이 */
+.modal-overlay {
+  @apply fixed inset-0 bg-black/40 flex items-center justify-center z-50;
+}
+
+/* 진행 바 (워크로드) */
+.workload-bar {
+  @apply h-2 rounded-full bg-gray-200 overflow-hidden;
+}
+.workload-fill {
+  @apply h-full rounded-full transition-all duration-300;
+}
