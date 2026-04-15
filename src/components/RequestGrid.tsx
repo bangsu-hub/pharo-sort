@@ -35,6 +35,12 @@ function daysLeft(due: string | null): number | null {
   if (!due) return null
   return differenceInDays(parseISO(due), startOfToday())
 }
+function isNewJiraItem(r: Request): boolean {
+  if (!r.jira_key || !r.created_at) return false
+  const createdDate = r.created_at.slice(0, 10)
+  const today = new Date().toISOString().slice(0, 10)
+  return createdDate === today
+}
 
 export default function RequestGrid({
   requests, selectedIds,
@@ -66,6 +72,7 @@ export default function RequestGrid({
           const done      = r.status === '완료'
           const days      = daysLeft(r.due_date)
           const isChecked = selectedIds.has(r.id)
+          const isNew     = isNewJiraItem(r)
 
           return (
             <div key={r.id}
@@ -83,6 +90,7 @@ export default function RequestGrid({
                 <div className="flex-1 min-w-0">
                   <button onClick={() => onEdit(r)}
                     className="text-sm font-semibold text-gray-900 hover:text-indigo-600 text-left line-clamp-2 w-full">
+                    {isNew && <span className="mr-1 inline-block text-xs font-bold bg-indigo-500 text-white rounded px-1.5 py-0.5 align-middle">N</span>}
                     {r.title}
                     {overdue && <span className="ml-1 inline-block text-xs font-bold bg-red-500 text-white rounded px-1">D+{Math.abs(days ?? 0)}</span>}
                   </button>
@@ -211,6 +219,7 @@ export default function RequestGrid({
               const done      = r.status === '완료'
               const days      = daysLeft(r.due_date)
               const isChecked = selectedIds.has(r.id)
+              const isNew     = isNewJiraItem(r)
               const rowCls = isChecked ? 'bg-indigo-50' : overdue ? 'row-overdue' : done ? 'row-done' : 'row-normal'
 
               return (
@@ -233,11 +242,18 @@ export default function RequestGrid({
                   </td>
                   <td className="text-xs">{r.requester}</td>
                   <td>
-                    <button onClick={() => onEdit(r)}
-                      className="text-left text-sm font-medium text-gray-800 hover:text-indigo-600 hover:underline transition-colors line-clamp-2 w-full">
-                      {r.title}
-                    </button>
-                    {overdue && <span className="badge-delay">D+{Math.abs(days ?? 0)}</span>}
+                    <div className="flex items-start gap-1.5">
+                      {isNew && (
+                        <span className="shrink-0 mt-0.5 text-xs font-bold bg-indigo-500 text-white rounded px-1.5 py-0.5">N</span>
+                      )}
+                      <div>
+                        <button onClick={() => onEdit(r)}
+                          className="text-left text-sm font-medium text-gray-800 hover:text-indigo-600 hover:underline transition-colors line-clamp-2 w-full">
+                          {r.title}
+                        </button>
+                        {overdue && <span className="badge-delay">D+{Math.abs(days ?? 0)}</span>}
+                      </div>
+                    </div>
                   </td>
                   <td><p className="text-xs text-gray-500 line-clamp-2 whitespace-pre-line">{r.summary || '—'}</p></td>
                   <td className="text-center">
