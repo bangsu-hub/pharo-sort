@@ -17,7 +17,13 @@ const MEMBER_EMOJI: Record<string, string> = {
 
 const EMPTY_FILTERS: FilterState = {
   team: '', status: '', assignee: '', priority: '', search: '',
-  jiraStatus: '', unassignedOnly: false, excludeDone: false,
+  jiraStatus: '', unassignedOnly: false, excludeDone: false, excludeWaiting: false,
+}
+
+const DEFAULT_FILTERS: FilterState = {
+  ...EMPTY_FILTERS,
+  excludeDone: true,
+  excludeWaiting: true,
 }
 
 type Toast = { id: number; type: 'success' | 'error' | 'info'; message: string }
@@ -35,7 +41,7 @@ export default function HomePage() {
 
   const [requests, setRequests]     = useState<Request[]>([])
   const [loading, setLoading]       = useState(true)
-  const [filters, setFilters]       = useState<FilterState>(EMPTY_FILTERS)
+  const [filters, setFilters]       = useState<FilterState>(DEFAULT_FILTERS)
   const [editing, setEditing]       = useState<Request | null>(null)
   const [showForm, setShowForm]     = useState(false)
   const [syncing, setSyncing]       = useState(false)
@@ -97,7 +103,8 @@ export default function HomePage() {
       if (filters.priority       && r.priority     !== filters.priority)               return false
       if (filters.jiraStatus     && r.jira_status  !== filters.jiraStatus)             return false
       if (filters.unassignedOnly && r.assignee?.trim())                                return false
-      if (filters.excludeDone   && r.status === '완료')                               return false
+      if (filters.excludeDone    && r.status === '완료')                               return false
+      if (filters.excludeWaiting && r.status === '대기')                               return false
       if (q && !r.title.toLowerCase().includes(q) &&
                !r.requester.toLowerCase().includes(q) &&
                !r.summary.toLowerCase().includes(q)) return false
@@ -408,7 +415,7 @@ export default function HomePage() {
         <FilterBar
           filters={filters}
           onChange={setFilters}
-          onReset={() => setFilters(EMPTY_FILTERS)}
+          onReset={() => setFilters(DEFAULT_FILTERS)}
         />
 
         <div className="flex items-center justify-between text-sm text-gray-500">

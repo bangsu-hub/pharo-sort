@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { FilterState, Priority, Status } from '@/types'
 import { TEAM_MEMBERS, REQUEST_TEAMS } from '@/lib/constants'
 
-const STATUSES: Status[]     = ['접수', '검토중', '기획중', '완료']
+const STATUSES: Status[]     = ['접수', '검토중', '기획중', '대기', '완료']
 const PRIORITIES: Priority[] = ['★', '★★', '★★★']
 
 // Jira 보드 상태 목록 (API 반환값 기준)
@@ -34,7 +34,7 @@ export default function FilterBar({ filters, onChange, onReset }: Props) {
   const hasActive =
     filters.team || filters.status || filters.assignee ||
     filters.priority || filters.search || filters.jiraStatus ||
-    filters.unassignedOnly || filters.excludeDone
+    filters.unassignedOnly || filters.excludeDone || filters.excludeWaiting
 
   return (
     <div className="flex flex-col gap-2 bg-white border border-gray-200 rounded-lg px-3 md:px-4 py-3 shadow-sm">
@@ -135,6 +135,22 @@ export default function FilterBar({ filters, onChange, onReset }: Props) {
               d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
           </svg>
           미배정만 보기
+        </button>
+
+        {/* 대기 제외 토글 */}
+        <button
+          onClick={() => update('excludeWaiting', !filters.excludeWaiting)}
+          className={`flex items-center gap-1.5 text-xs px-3 py-1 rounded-full font-medium transition-all border whitespace-nowrap ${
+            filters.excludeWaiting
+              ? 'bg-gray-500 text-white border-gray-500'
+              : 'bg-white text-gray-600 border-gray-200 hover:border-gray-400 hover:text-gray-500'
+          }`}
+        >
+          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+              d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"/>
+          </svg>
+          대기 제외
         </button>
 
         {/* 완료 제외 토글 */}

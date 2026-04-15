@@ -11,15 +11,17 @@ const STATUS_TEXT: Record<Status, string> = {
   '접수':   'text-blue-700 bg-blue-100',
   '검토중': 'text-yellow-700 bg-yellow-100',
   '기획중': 'text-purple-700 bg-purple-100',
+  '대기':   'text-gray-500 bg-gray-100',
   '완료':   'text-green-700 bg-green-100',
 }
 const STATUS_BAR: Record<Status, string> = {
   '접수':   'bg-blue-400',
   '검토중': 'bg-yellow-400',
   '기획중': 'bg-purple-400',
+  '대기':   'bg-gray-400',
   '완료':   'bg-green-400',
 }
-const STATUSES: Status[] = ['접수', '검토중', '기획중', '완료']
+const STATUSES: Status[] = ['접수', '검토중', '기획중', '대기', '완료']
 
 // 담당자별 귀여운 동물 아이콘 & 카드 색상
 const MEMBER_STYLE: Record<string, { emoji: string; bg: string; ring: string; text: string }> = {

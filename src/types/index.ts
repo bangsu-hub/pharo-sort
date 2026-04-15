@@ -1,4 +1,4 @@
-export type Status = '접수' | '검토중' | '기획중' | '완료'
+export type Status = '접수' | '검토중' | '기획중' | '대기' | '완료'
 export type Priority = '★' | '★★' | '★★★'
 
 export interface Request {
@@ -36,6 +36,7 @@ export interface FilterState {
   jiraStatus: string
   unassignedOnly: boolean
   excludeDone: boolean
+  excludeWaiting: boolean
 }
 
 export interface JiraSyncResult {

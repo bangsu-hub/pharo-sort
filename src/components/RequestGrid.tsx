@@ -6,7 +6,7 @@ import JiraStatusBadge from './JiraStatusBadge'
 import { isAfter, parseISO, startOfToday, differenceInDays } from 'date-fns'
 import { TEAM_MEMBERS, REQUEST_TEAMS } from '@/lib/constants'
 
-const STATUSES: Status[] = ['접수', '검토중', '기획중', '완료']
+const STATUSES: Status[] = ['접수', '검토중', '기획중', '대기', '완료']
 
 const PRIORITY_STYLE: Record<string, string> = {
   '★':   'text-gray-400',
