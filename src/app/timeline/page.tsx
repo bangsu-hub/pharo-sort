@@ -8,7 +8,7 @@ import { getWeekBounds, getWeekDays, isOverdue, isThisWeek, toDateStr } from '@/
 import TimelineCard from '@/components/TimelineCard'
 
 const MEMBER_EMOJI: Record<string, string> = {
-  '구자영': '🐰', '윤난희': '🐂', '방수진': '🐷', '박종민': '🐑', '허주희': '🐴',
+  '구자영': '🐰', '윤난희': '🐮', '방수진': '🐷', '박종민': '🐑', '허주희': '🐴',
 }
 
 type Toast = { id: number; type: 'success' | 'error' | 'info'; message: string }
