@@ -1,7 +1,10 @@
 import { Request } from '@/types'
 
 export function toDateStr(d: Date): string {
-  return d.toISOString().slice(0, 10)
+  const y  = d.getFullYear()
+  const m  = String(d.getMonth() + 1).padStart(2, '0')
+  const dd = String(d.getDate()).padStart(2, '0')
+  return `${y}-${m}-${dd}`
 }
 
 /** 이번 주 월요일~금요일 날짜 반환 */
