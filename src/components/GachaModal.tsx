@@ -193,18 +193,27 @@ export default function GachaModal({ requests, currentUser, onAssigned, onClose 
                                      'border-gray-200 bg-gray-50'}
           `}>
             {/* 슬롯 창 */}
-            <div className={`
-              text-7xl mb-3 transition-transform duration-100
-              ${phase === 'spinning' ? 'scale-110' : 'scale-100'}
-            `}>
-              {MEMBER_EMOJI[displayMember] ?? '👤'}
-            </div>
-            <p className={`
-              text-lg font-black transition-all
-              ${phase === 'result' ? 'text-yellow-600 text-2xl' : 'text-gray-700'}
-            `}>
-              {displayMember}
-            </p>
+            {phase === 'select' ? (
+              <div className="flex flex-col items-center gap-3 py-2">
+                <span className="text-5xl">🎲</span>
+                <p className="text-xs text-gray-400">누가 담당자가 될까요?</p>
+              </div>
+            ) : (
+              <>
+                <div className={`
+                  text-7xl mb-3 transition-transform duration-100
+                  ${phase === 'spinning' ? 'scale-110' : 'scale-100'}
+                `}>
+                  {MEMBER_EMOJI[displayMember] ?? '👤'}
+                </div>
+                <p className={`
+                  text-lg font-black transition-all
+                  ${phase === 'result' ? 'text-yellow-600 text-2xl' : 'text-gray-700'}
+                `}>
+                  {displayMember}
+                </p>
+              </>
+            )}
 
             {phase === 'result' && (
               <div className="mt-2 flex flex-col items-center gap-1">
