@@ -16,7 +16,7 @@ export async function GET() {
 
 // POST /api/requests — 새 요청 등록
 export async function POST(req: NextRequest) {
-  const userName = req.headers.get('x-user-name') || ''
+  const userName = decodeURIComponent(req.headers.get('x-user-name') || '')
 
   let body: RequestInput
   try {

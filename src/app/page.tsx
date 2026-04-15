@@ -146,7 +146,7 @@ export default function HomePage() {
     const results = await Promise.all(
       ids.map(id => fetch(`/api/requests/${id}`, {
         method: 'DELETE',
-        headers: { 'X-User-Name': currentUser ?? '' },
+        headers: { 'X-User-Name': encodeURIComponent(currentUser ?? '') },
       }))
     )
     const failed = results.filter(r => !r.ok).length
@@ -188,7 +188,7 @@ export default function HomePage() {
     if (editing) {
       const res = await fetch(`/api/requests/${editing.id}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json', 'X-User-Name': currentUser ?? '' },
+        headers: { 'Content-Type': 'application/json', 'X-User-Name': encodeURIComponent(currentUser ?? '') },
         body: JSON.stringify(data),
       })
       if (!res.ok) { addToast('error', '수정 실패'); return }
@@ -198,7 +198,7 @@ export default function HomePage() {
     } else {
       const res = await fetch('/api/requests', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'X-User-Name': currentUser ?? '' },
+        headers: { 'Content-Type': 'application/json', 'X-User-Name': encodeURIComponent(currentUser ?? '') },
         body: JSON.stringify(data),
       })
       if (!res.ok) { addToast('error', '등록 실패'); return }
@@ -211,15 +211,19 @@ export default function HomePage() {
   }
 
   const patchField = async (id: number, patch: Partial<Request>, successMsg: string) => {
-    const res = await fetch(`/api/requests/${id}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json', 'X-User-Name': currentUser ?? '' },
-      body: JSON.stringify(patch),
-    })
-    if (!res.ok) { addToast('error', '변경 실패'); return }
-    const updated: Request = await res.json()
-    setRequests(prev => prev.map(r => r.id === updated.id ? updated : r))
-    addToast('info', successMsg)
+    try {
+      const res = await fetch(`/api/requests/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', 'X-User-Name': encodeURIComponent(currentUser ?? '') },
+        body: JSON.stringify(patch),
+      })
+      if (!res.ok) { addToast('error', '변경 실패'); return }
+      const updated: Request = await res.json()
+      setRequests(prev => prev.map(r => r.id === updated.id ? updated : r))
+      addToast('info', successMsg)
+    } catch (e: unknown) {
+      addToast('error', `오류: ${(e as Error).message}`)
+    }
   }
 
   const handleStatusChange   = (id: number, status: Status) =>

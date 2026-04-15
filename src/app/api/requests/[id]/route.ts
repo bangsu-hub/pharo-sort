@@ -19,7 +19,7 @@ export async function GET(_req: NextRequest, { params }: Ctx) {
 export async function PUT(req: NextRequest, { params }: Ctx) {
   const { id } = await params
   const body     = await req.json()
-  const userName = req.headers.get('x-user-name') || ''
+  const userName = decodeURIComponent(req.headers.get('x-user-name') || '')
 
   // ① 먼저 기존 데이터 가져오기 (로그용)
   const { data: before } = await supabase
@@ -64,7 +64,7 @@ export async function PUT(req: NextRequest, { params }: Ctx) {
 export async function PATCH(req: NextRequest, { params }: Ctx) {
   const { id } = await params
   const body     = await req.json()
-  const userName = req.headers.get('x-user-name') || ''
+  const userName = decodeURIComponent(req.headers.get('x-user-name') || '')
 
   // ① 먼저 기존 데이터 가져오기 (로그용)
   const { data: before } = await supabase
@@ -105,7 +105,7 @@ export async function PATCH(req: NextRequest, { params }: Ctx) {
 
 export async function DELETE(req: NextRequest, { params }: Ctx) {
   const { id } = await params
-  const userName = req.headers.get('x-user-name') || ''
+  const userName = decodeURIComponent(req.headers.get('x-user-name') || '')
 
   // 삭제 전 제목 조회
   const { data: before } = await supabase
