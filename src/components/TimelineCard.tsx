@@ -4,7 +4,7 @@ import { Request } from '@/types'
 import { isOverdue } from '@/lib/weekUtils'
 
 const MEMBER_EMOJI: Record<string, string> = {
-  '구자영': '🐰', '윤난희': '🐮', '방수진': '🐉', '박종민': '🐑', '허주희': '🐴',
+  '구자영': '🐰', '윤난희': '🐮', '방수진': '🐹', '박종민': '🐑', '허주희': '🐴',
 }
 
 const PRIORITY_COLOR: Record<string, string> = {

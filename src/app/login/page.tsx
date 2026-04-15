@@ -10,7 +10,7 @@ const MEMBER_STYLE: Record<string, {
 }> = {
   '구자영': { emoji: '🐰', bg: 'bg-pink-50',   border: 'border-pink-200 hover:border-pink-400',     text: 'text-pink-700'   },
   '윤난희': { emoji: '🐮', bg: 'bg-violet-50', border: 'border-violet-200 hover:border-violet-400', text: 'text-violet-700' },
-  '방수진': { emoji: '🐉', bg: 'bg-amber-50',  border: 'border-amber-200 hover:border-amber-400',   text: 'text-amber-700'  },
+  '방수진': { emoji: '🐹', bg: 'bg-amber-50',  border: 'border-amber-200 hover:border-amber-400',   text: 'text-amber-700'  },
   '박종민': { emoji: '🐑', bg: 'bg-orange-50', border: 'border-orange-200 hover:border-orange-400', text: 'text-orange-700' },
   '허주희': { emoji: '🐴', bg: 'bg-teal-50',   border: 'border-teal-200 hover:border-teal-400',     text: 'text-teal-700'   },
 }
