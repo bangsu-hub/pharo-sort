@@ -119,6 +119,40 @@ export default function FilterBar({ filters, onChange, onReset }: Props) {
           {PRIORITIES.map(p => <option key={p} value={p}>{p}</option>)}
         </select>
 
+        <div className="h-4 border-l border-gray-200 mx-0.5" />
+
+        {/* 미배정 토글 */}
+        <button
+          onClick={() => update('unassignedOnly', !filters.unassignedOnly)}
+          className={`flex items-center gap-1.5 text-xs px-3 py-1 rounded-full font-medium transition-all border whitespace-nowrap ${
+            filters.unassignedOnly
+              ? 'bg-orange-500 text-white border-orange-500'
+              : 'bg-white text-gray-600 border-gray-200 hover:border-orange-300 hover:text-orange-500'
+          }`}
+        >
+          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+              d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
+          </svg>
+          미배정만 보기
+        </button>
+
+        {/* 완료 제외 토글 */}
+        <button
+          onClick={() => update('excludeDone', !filters.excludeDone)}
+          className={`flex items-center gap-1.5 text-xs px-3 py-1 rounded-full font-medium transition-all border whitespace-nowrap ${
+            filters.excludeDone
+              ? 'bg-green-600 text-white border-green-600'
+              : 'bg-white text-gray-600 border-gray-200 hover:border-green-400 hover:text-green-600'
+          }`}
+        >
+          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+              d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"/>
+          </svg>
+          완료 제외
+        </button>
+
         {/* 초기화 */}
         {hasActive && (
           <button
@@ -137,7 +171,7 @@ export default function FilterBar({ filters, onChange, onReset }: Props) {
         </div>
       </div>
 
-      {/* 2행: 지라 보드 상태 + 미배정 */}
+      {/* 2행: 지라 보드 상태 */}
       <div className="flex flex-nowrap overflow-x-auto md:flex-wrap items-center gap-2 pt-2 border-t border-gray-100 pb-1 md:pb-0">
         <span className="text-xs text-gray-400 font-medium whitespace-nowrap">지라 상태</span>
 
@@ -171,39 +205,6 @@ export default function FilterBar({ filters, onChange, onReset }: Props) {
           )
         })}
 
-        <div className="h-4 border-l border-gray-200 mx-1" />
-
-        {/* 미배정 토글 */}
-        <button
-          onClick={() => update('unassignedOnly', !filters.unassignedOnly)}
-          className={`flex items-center gap-1.5 text-xs px-3 py-1 rounded-full font-medium transition-all border whitespace-nowrap ${
-            filters.unassignedOnly
-              ? 'bg-orange-500 text-white border-orange-500'
-              : 'bg-white text-gray-600 border-gray-200 hover:border-orange-300 hover:text-orange-500'
-          }`}
-        >
-          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-              d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
-          </svg>
-          미배정만 보기
-        </button>
-
-        {/* 완료 제외 토글 */}
-        <button
-          onClick={() => update('excludeDone', !filters.excludeDone)}
-          className={`flex items-center gap-1.5 text-xs px-3 py-1 rounded-full font-medium transition-all border whitespace-nowrap ${
-            filters.excludeDone
-              ? 'bg-green-600 text-white border-green-600'
-              : 'bg-white text-gray-600 border-gray-200 hover:border-green-400 hover:text-green-600'
-          }`}
-        >
-          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-              d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"/>
-          </svg>
-          완료 제외
-        </button>
       </div>
 
       </div>{/* end collapsible */}
