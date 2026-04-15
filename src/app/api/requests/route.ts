@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
+import { logActivity } from '@/lib/logger'
 import { RequestInput } from '@/types'
 
 // GET /api/requests — 전체 요청 목록 조회
@@ -9,14 +10,14 @@ export async function GET() {
     .select('*')
     .order('id', { ascending: false })
 
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 })
-  }
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json(data)
 }
 
 // POST /api/requests — 새 요청 등록
 export async function POST(req: NextRequest) {
+  const userName = req.headers.get('x-user-name') || ''
+
   let body: RequestInput
   try {
     body = await req.json()
@@ -37,8 +38,16 @@ export async function POST(req: NextRequest) {
     .select()
     .single()
 
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 })
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+  if (userName) {
+    await logActivity({
+      user_name:     userName,
+      action:        'create',
+      request_id:    data.id,
+      request_title: data.title,
+    })
   }
+
   return NextResponse.json(data, { status: 201 })
 }

@@ -1,13 +1,19 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { Request, RequestInput, Status, FilterState, WorkloadItem } from '@/types'
 import { TEAM_MEMBERS } from '@/lib/constants'
+import { getCurrentUser, clearCurrentUser } from '@/lib/auth'
 import FilterBar from '@/components/FilterBar'
 import RequestGrid from '@/components/RequestGrid'
 import RequestForm from '@/components/RequestForm'
 import WorkloadPanel from '@/components/WorkloadPanel'
 import ConfirmDialog from '@/components/ConfirmDialog'
+
+const MEMBER_EMOJI: Record<string, string> = {
+  '구자영': '🐱', '윤난희': '🐰', '방수진': '🐻', '박종민': '🦊', '허주희': '🐼',
+}
 
 const EMPTY_FILTERS: FilterState = {
   team: '', status: '', assignee: '', priority: '', search: '',
@@ -23,6 +29,10 @@ interface ConfirmState {
 }
 
 export default function HomePage() {
+  const router = useRouter()
+  const [currentUser, setCurrentUser] = useState<string | null>(null)
+  const [authChecked, setAuthChecked] = useState(false)
+
   const [requests, setRequests]     = useState<Request[]>([])
   const [loading, setLoading]       = useState(true)
   const [filters, setFilters]       = useState<FilterState>(EMPTY_FILTERS)
@@ -39,6 +49,14 @@ export default function HomePage() {
     setToasts(prev => [...prev, { id, type, message }])
     setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), 4000)
   }, [])
+
+  /* ── 로그인 체크 ── */
+  useEffect(() => {
+    const user = getCurrentUser()
+    if (!user) { router.replace('/login'); return }
+    setCurrentUser(user)
+    setAuthChecked(true)
+  }, [router])
 
   /* ── 데이터 로드 ── */
   const fetchAll = useCallback(async () => {
@@ -126,7 +144,10 @@ export default function HomePage() {
   /* ── 실제 삭제 실행 ── */
   const executeDelete = async (ids: number[]) => {
     const results = await Promise.all(
-      ids.map(id => fetch(`/api/requests/${id}`, { method: 'DELETE' }))
+      ids.map(id => fetch(`/api/requests/${id}`, {
+        method: 'DELETE',
+        headers: { 'X-User-Name': currentUser ?? '' },
+      }))
     )
     const failed = results.filter(r => !r.ok).length
     if (failed > 0) {
@@ -167,7 +188,7 @@ export default function HomePage() {
     if (editing) {
       const res = await fetch(`/api/requests/${editing.id}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'X-User-Name': currentUser ?? '' },
         body: JSON.stringify(data),
       })
       if (!res.ok) { addToast('error', '수정 실패'); return }
@@ -177,7 +198,7 @@ export default function HomePage() {
     } else {
       const res = await fetch('/api/requests', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'X-User-Name': currentUser ?? '' },
         body: JSON.stringify(data),
       })
       if (!res.ok) { addToast('error', '등록 실패'); return }
@@ -192,7 +213,7 @@ export default function HomePage() {
   const patchField = async (id: number, patch: Partial<Request>, successMsg: string) => {
     const res = await fetch(`/api/requests/${id}`, {
       method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'X-User-Name': currentUser ?? '' },
       body: JSON.stringify(patch),
     })
     if (!res.ok) { addToast('error', '변경 실패'); return }
@@ -228,6 +249,23 @@ export default function HomePage() {
 
   const selectedCount = selectedIds.size
 
+  const handleLogout = () => {
+    clearCurrentUser()
+    router.replace('/login')
+  }
+
+  // 로그인 확인 전 로딩 스피너
+  if (!authChecked) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <svg className="w-8 h-8 animate-spin text-indigo-400" fill="none" viewBox="0 0 24 24">
+          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/>
+        </svg>
+      </div>
+    )
+  }
+
   return (
     <div className="min-h-screen flex flex-col">
       {/* ── 헤더 ── */}
@@ -253,6 +291,21 @@ export default function HomePage() {
               👥 담당자 대시보드
             </a>
           </nav>
+        </div>
+
+        {/* 현재 유저 + 로그아웃 + 이력(subtle) */}
+        <div className="hidden md:flex items-center gap-2 border-r border-gray-100 pr-3 mr-1">
+          <span className="text-sm">{MEMBER_EMOJI[currentUser ?? ''] ?? '👤'}</span>
+          <span className="text-sm font-medium text-gray-700">{currentUser}</span>
+          <button onClick={handleLogout} className="text-xs text-gray-300 hover:text-gray-500 transition-colors ml-1">
+            로그아웃
+          </button>
+          <a href="/history" className="text-gray-300 hover:text-gray-500 transition-colors" title="변경 이력 보기">
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+            </svg>
+          </a>
         </div>
 
         <div className="flex items-center gap-1.5 md:gap-3">

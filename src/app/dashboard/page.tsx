@@ -1,8 +1,10 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { Request, Status } from '@/types'
 import { TEAM_MEMBERS } from '@/lib/constants'
+import { getCurrentUser, clearCurrentUser } from '@/lib/auth'
 import JiraStatusBadge from '@/components/JiraStatusBadge'
 
 const STATUS_TEXT: Record<Status, string> = {
@@ -37,16 +39,24 @@ type MemberStats = {
 }
 
 export default function DashboardPage() {
+  const router = useRouter()
+  const [currentUser, setCurrentUser] = useState<string | null>(null)
+  const [authChecked, setAuthChecked] = useState(false)
+
   const [requests, setRequests]       = useState<Request[]>([])
   const [loading, setLoading]         = useState(true)
   const [expanded, setExpanded]       = useState<string | null>(null)
   const [statusFilter, setStatusFilter] = useState<Status | ''>('')
 
   useEffect(() => {
+    const user = getCurrentUser()
+    if (!user) { router.replace('/login'); return }
+    setCurrentUser(user)
+    setAuthChecked(true)
     fetch('/api/requests')
       .then(r => r.json())
       .then(data => { setRequests(data); setLoading(false) })
-  }, [])
+  }, [router])
 
   const memberStats = useMemo<MemberStats[]>(() => {
     return TEAM_MEMBERS.map(name => {
@@ -78,7 +88,12 @@ export default function DashboardPage() {
     [requests]
   )
 
-  if (loading) {
+  const handleLogout = () => {
+    clearCurrentUser()
+    router.replace('/login')
+  }
+
+  if (!authChecked || loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <svg className="w-8 h-8 animate-spin text-indigo-400" fill="none" viewBox="0 0 24 24">
@@ -116,11 +131,25 @@ export default function DashboardPage() {
           </nav>
         </div>
         <div className="flex items-center gap-2 text-xs">
-          <div className="bg-gray-100 text-gray-600 px-2.5 py-1.5 rounded-full">전체 {totalStats.total}</div>
-          <div className="bg-indigo-100 text-indigo-700 px-2.5 py-1.5 rounded-full font-medium">진행 {totalStats.active}</div>
+          <div className="hidden md:block bg-gray-100 text-gray-600 px-2.5 py-1.5 rounded-full">전체 {totalStats.total}</div>
+          <div className="hidden md:block bg-indigo-100 text-indigo-700 px-2.5 py-1.5 rounded-full font-medium">진행 {totalStats.active}</div>
           {totalStats.overdue > 0 && (
             <div className="bg-red-100 text-red-600 font-bold px-2.5 py-1.5 rounded-full animate-pulse">지연 {totalStats.overdue}</div>
           )}
+          {/* 유저 + 로그아웃 + 이력 */}
+          <div className="hidden md:flex items-center gap-2 border-l border-gray-100 pl-3 ml-1">
+            <span>{MEMBER_STYLE[currentUser ?? '']?.emoji ?? '👤'}</span>
+            <span className="font-medium text-gray-700">{currentUser}</span>
+            <button onClick={handleLogout} className="text-gray-300 hover:text-gray-500 transition-colors">
+              로그아웃
+            </button>
+            <a href="/history" className="text-gray-300 hover:text-gray-500 transition-colors" title="변경 이력 보기">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                  d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+              </svg>
+            </a>
+          </div>
         </div>
       </header>
 
