@@ -11,6 +11,7 @@ import RequestGrid from '@/components/RequestGrid'
 import RequestForm from '@/components/RequestForm'
 import WorkloadPanel from '@/components/WorkloadPanel'
 import ConfirmDialog from '@/components/ConfirmDialog'
+import GachaModal from '@/components/GachaModal'
 
 const MEMBER_EMOJI: Record<string, string> = {
   '구자영': '🐰', '윤난희': '🐮', '방수진': '🐹', '박종민': '🐑', '허주희': '🐴',
@@ -47,6 +48,7 @@ export default function HomePage() {
   const [editing, setEditing]       = useState<Request | null>(null)
   const [showForm, setShowForm]     = useState(false)
   const [syncing, setSyncing]       = useState(false)
+  const [showGacha, setShowGacha]   = useState(false)
   const [toasts, setToasts]         = useState<Toast[]>([])
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set())
   const [confirm, setConfirm]       = useState<ConfirmState | null>(null)
@@ -330,6 +332,13 @@ export default function HomePage() {
           <a href="/history" className="text-xs text-gray-400 hover:text-indigo-500 transition-colors whitespace-nowrap">
             변경이력보기
           </a>
+          <button
+            onClick={() => setShowGacha(true)}
+            title="담당자 가챠"
+            className="text-lg hover:scale-125 transition-transform leading-none"
+          >
+            🎰
+          </button>
         </div>
 
         <div className="flex items-center gap-1.5 md:gap-3">
@@ -534,6 +543,18 @@ export default function HomePage() {
           confirmLabel="삭제"
           onConfirm={confirm.onConfirm}
           onCancel={() => setConfirm(null)}
+        />
+      )}
+
+      {showGacha && (
+        <GachaModal
+          requests={requests}
+          currentUser={currentUser}
+          onAssigned={(id, assignee) => {
+            setRequests(prev => prev.map(r => r.id === id ? { ...r, assignee } : r))
+            addToast('success', `🎊 ${assignee}님이 담당자로 배정되었습니다!`)
+          }}
+          onClose={() => setShowGacha(false)}
         />
       )}
 

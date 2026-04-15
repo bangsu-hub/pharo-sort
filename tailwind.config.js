@@ -10,6 +10,15 @@ module.exports = {
       fontFamily: {
         sans: ['Pretendard', 'Noto Sans KR', 'sans-serif'],
       },
+      keyframes: {
+        confetti: {
+          '0%':   { transform: 'translateY(-10px) rotate(0deg)',   opacity: '1' },
+          '100%': { transform: 'translateY(400px) rotate(720deg)', opacity: '0' },
+        },
+      },
+      animation: {
+        confetti: 'confetti 1.6s ease-in forwards',
+      },
     },
   },
   plugins: [],
