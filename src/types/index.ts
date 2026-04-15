@@ -37,6 +37,7 @@ export interface FilterState {
   unassignedOnly: boolean
   excludeDone: boolean
   excludeWaiting: boolean
+  myWeekOnly: boolean
 }
 
 export interface JiraSyncResult {

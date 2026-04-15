@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { Request, RequestInput, Status, FilterState, WorkloadItem } from '@/types'
 import { TEAM_MEMBERS } from '@/lib/constants'
 import { getCurrentUser, clearCurrentUser } from '@/lib/auth'
+import { isOverdue, isThisWeek, getWeekBounds } from '@/lib/weekUtils'
 import FilterBar from '@/components/FilterBar'
 import RequestGrid from '@/components/RequestGrid'
 import RequestForm from '@/components/RequestForm'
@@ -18,6 +19,7 @@ const MEMBER_EMOJI: Record<string, string> = {
 const EMPTY_FILTERS: FilterState = {
   team: '', status: '', assignee: '', priority: '', search: '',
   jiraStatus: '', unassignedOnly: false, excludeDone: false, excludeWaiting: false,
+  myWeekOnly: false,
 }
 
 const DEFAULT_FILTERS: FilterState = {
@@ -96,7 +98,8 @@ export default function HomePage() {
 
   const filtered = useMemo(() => {
     const q = filters.search.toLowerCase()
-    return requests.filter(r => {
+    const { mondayStr, fridayStr } = getWeekBounds()
+    const base = requests.filter(r => {
       if (filters.team           && r.request_team !== filters.team)                   return false
       if (filters.status         && r.status       !== filters.status)                 return false
       if (filters.assignee       && r.assignee     !== filters.assignee)               return false
@@ -105,12 +108,22 @@ export default function HomePage() {
       if (filters.unassignedOnly && r.assignee?.trim())                                return false
       if (filters.excludeDone    && r.status === '완료')                               return false
       if (filters.excludeWaiting && r.status === '대기')                               return false
+      if (filters.myWeekOnly) {
+        if (r.assignee !== currentUser)                                                return false
+        if (!r.due_date || r.due_date < mondayStr || r.due_date > fridayStr)          return false
+      }
       if (q && !r.title.toLowerCase().includes(q) &&
                !r.requester.toLowerCase().includes(q) &&
                !r.summary.toLowerCase().includes(q)) return false
       return true
     })
-  }, [requests, filters])
+    // 기한 초과 + 미완료 건을 맨 앞에 고정
+    return [...base].sort((a, b) => {
+      const ao = isOverdue(a) ? 0 : 1
+      const bo = isOverdue(b) ? 0 : 1
+      return ao - bo
+    })
+  }, [requests, filters, currentUser])
 
   const stats = useMemo(() => ({
     접수:   requests.filter(r => r.status === '접수').length,
@@ -301,6 +314,9 @@ export default function HomePage() {
             <a href="/dashboard" className="text-sm font-medium text-gray-500 hover:text-gray-700 px-4 py-1.5 rounded-lg transition-colors">
               👥 담당자 대시보드
             </a>
+            <a href="/timeline" className="text-sm font-medium text-gray-500 hover:text-gray-700 px-4 py-1.5 rounded-lg transition-colors">
+              📅 주간 타임라인
+            </a>
           </nav>
         </div>
 
@@ -408,6 +424,13 @@ export default function HomePage() {
           </svg>
           <span className="text-xs mt-0.5">대시보드</span>
         </a>
+        <a href="/timeline" className="flex-1 flex flex-col items-center justify-center py-2.5 text-gray-400 border-t-2 border-transparent">
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+              d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+          </svg>
+          <span className="text-xs mt-0.5">타임라인</span>
+        </a>
       </nav>
 
       {/* ── 메인 ── */}
@@ -416,6 +439,7 @@ export default function HomePage() {
           filters={filters}
           onChange={setFilters}
           onReset={() => setFilters(DEFAULT_FILTERS)}
+          currentUser={currentUser}
         />
 
         <div className="flex items-center justify-between text-sm text-gray-500">

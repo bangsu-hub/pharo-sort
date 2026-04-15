@@ -6,6 +6,7 @@ import { Request, Status } from '@/types'
 import { TEAM_MEMBERS } from '@/lib/constants'
 import { getCurrentUser, clearCurrentUser } from '@/lib/auth'
 import JiraStatusBadge from '@/components/JiraStatusBadge'
+import WeeklySummary from '@/components/WeeklySummary'
 
 const STATUS_TEXT: Record<Status, string> = {
   '접수':   'text-blue-700 bg-blue-100',
@@ -130,6 +131,9 @@ export default function DashboardPage() {
             <span className="text-sm font-semibold text-white bg-indigo-600 px-4 py-1.5 rounded-lg shadow-sm">
               👥 담당자 대시보드
             </span>
+            <a href="/timeline" className="text-sm font-medium text-gray-500 hover:text-gray-700 px-4 py-1.5 rounded-lg transition-colors">
+              📅 주간 타임라인
+            </a>
           </nav>
         </div>
         <div className="flex items-center gap-2 text-xs">
@@ -145,11 +149,8 @@ export default function DashboardPage() {
             <button onClick={handleLogout} className="text-gray-300 hover:text-gray-500 transition-colors">
               로그아웃
             </button>
-            <a href="/history" className="text-gray-300 hover:text-gray-500 transition-colors" title="변경 이력 보기">
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                  d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
-              </svg>
+            <a href="/history" className="text-xs text-gray-400 hover:text-indigo-500 transition-colors whitespace-nowrap">
+              변경이력보기
             </a>
           </div>
         </div>
@@ -170,9 +171,19 @@ export default function DashboardPage() {
           </svg>
           <span className="text-xs font-bold mt-0.5">대시보드</span>
         </span>
+        <a href="/timeline" className="flex-1 flex flex-col items-center justify-center py-2.5 text-gray-400 border-t-2 border-transparent">
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+              d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+          </svg>
+          <span className="text-xs mt-0.5">타임라인</span>
+        </a>
       </nav>
 
       <main className="flex-1 p-3 md:p-6 space-y-4 md:space-y-6 pb-20 md:pb-6">
+
+        {/* ── 주간 현황 요약 ── */}
+        <WeeklySummary requests={requests} />
 
         {/* ── STG 테스트 필요 알림 배너 ── */}
         {stgRequired.length > 0 && (

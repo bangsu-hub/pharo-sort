@@ -23,9 +23,10 @@ interface Props {
   filters: FilterState
   onChange: (f: FilterState) => void
   onReset: () => void
+  currentUser?: string | null
 }
 
-export default function FilterBar({ filters, onChange, onReset }: Props) {
+export default function FilterBar({ filters, onChange, onReset, currentUser }: Props) {
   const [mobileOpen, setMobileOpen] = useState(false)
 
   const update = (key: keyof FilterState, value: string | boolean) =>
@@ -34,7 +35,8 @@ export default function FilterBar({ filters, onChange, onReset }: Props) {
   const hasActive =
     filters.team || filters.status || filters.assignee ||
     filters.priority || filters.search || filters.jiraStatus ||
-    filters.unassignedOnly || filters.excludeDone || filters.excludeWaiting
+    filters.unassignedOnly || filters.excludeDone || filters.excludeWaiting ||
+    filters.myWeekOnly
 
   return (
     <div className="flex flex-col gap-2 bg-white border border-gray-200 rounded-lg px-3 md:px-4 py-3 shadow-sm">
@@ -136,6 +138,20 @@ export default function FilterBar({ filters, onChange, onReset }: Props) {
           </svg>
           미배정만 보기
         </button>
+
+        {/* 나의 이번 주 업무 */}
+        {currentUser && (
+          <button
+            onClick={() => update('myWeekOnly', !filters.myWeekOnly)}
+            className={`flex items-center gap-1.5 text-xs px-3 py-1 rounded-full font-medium transition-all border whitespace-nowrap ${
+              filters.myWeekOnly
+                ? 'bg-indigo-600 text-white border-indigo-600'
+                : 'bg-white text-gray-600 border-gray-200 hover:border-indigo-300 hover:text-indigo-600'
+            }`}
+          >
+            📅 나의 이번 주
+          </button>
+        )}
 
         {/* 대기 제외 토글 */}
         <button
