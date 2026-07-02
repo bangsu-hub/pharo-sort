@@ -8,7 +8,7 @@ import { getWeekBounds, getWeekDays, isOverdue, isThisWeek, toDateStr } from '@/
 import TimelineCard from '@/components/TimelineCard'
 
 const MEMBER_EMOJI: Record<string, string> = {
-  '구자영': '🐰', '윤난희': '🐮', '방수진': '🐹', '박종민': '🐑', '허주희': '🐴',
+  '구자영': '🐰', '윤난희': '🐮', '방수진': '🐷', '박종민': '🐑', '허주희': '🐴', '신지희': '🐯',
 }
 
 type Toast = { id: number; type: 'success' | 'error' | 'info'; message: string }
@@ -157,12 +157,12 @@ export default function TimelinePage() {
             </div>
             <div>
               <h1 className="text-base font-bold text-gray-900 leading-tight">Pharo-Sort</h1>
-              <p className="hidden md:block text-xs text-gray-400">파로스 기획팀 요청 관리 시스템 / 파로스(Pharos) + 분류(Sort)</p>
+              <p className="hidden md:block text-xs text-gray-400">파로스 기획팀 업무 관리 시스템 / 파로스(Pharos) + 분류(Sort)</p>
             </div>
           </div>
           <nav className="hidden md:flex items-center gap-1.5 bg-gray-100 rounded-xl p-1">
             <a href="/" className="text-sm font-medium text-gray-500 hover:text-gray-700 px-4 py-1.5 rounded-lg transition-colors">
-              📋 요청 목록
+              📋 업무 목록
             </a>
             <a href="/dashboard" className="text-sm font-medium text-gray-500 hover:text-gray-700 px-4 py-1.5 rounded-lg transition-colors">
               👥 담당자 대시보드
@@ -181,6 +181,9 @@ export default function TimelinePage() {
           <a href="/history" className="text-xs text-gray-400 hover:text-indigo-500 transition-colors whitespace-nowrap">
             변경이력보기
           </a>
+          <a href="/settings" className="text-xs text-gray-400 hover:text-indigo-500 transition-colors whitespace-nowrap">
+            ⚙️ 설정
+          </a>
         </div>
       </header>
 
@@ -191,7 +194,7 @@ export default function TimelinePage() {
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
               d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
           </svg>
-          <span className="text-xs mt-0.5">요청 목록</span>
+          <span className="text-xs mt-0.5">업무 목록</span>
         </a>
         <a href="/dashboard" className="flex-1 flex flex-col items-center justify-center py-2.5 text-gray-400 border-t-2 border-transparent">
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">

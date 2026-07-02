@@ -14,9 +14,11 @@ const JIRA_BASE_URL   = process.env.JIRA_BASE_URL
 const JIRA_EMAIL      = process.env.JIRA_EMAIL
 const JIRA_API_TOKEN  = process.env.JIRA_API_TOKEN
 const TARGET_LABELS   = (process.env.JIRA_TARGET_LABEL || 'planning-request').split(',').map(l => l.trim())
+const JIRA_PROJECT_KEY      = process.env.JIRA_PROJECT_KEY || 'PHAROS'
+const JIRA_CREATE_ISSUE_TYPE = process.env.JIRA_CREATE_ISSUE_TYPE || '작업'
 
-function getAuthHeader(): string {
-  const credentials = `${JIRA_EMAIL}:${JIRA_API_TOKEN}`
+function getAuthHeader(email: string | undefined = JIRA_EMAIL, apiToken: string | undefined = JIRA_API_TOKEN): string {
+  const credentials = `${email}:${apiToken}`
   return `Basic ${Buffer.from(credentials).toString('base64')}`
 }
 
@@ -110,4 +112,87 @@ export async function fetchJiraIssues(): Promise<JiraFetchResult> {
   const issues = (data.issues ?? []).map(mapJiraIssueToRequest)
 
   return { issues, total: data.total ?? issues.length }
+}
+
+/** 순수 텍스트(줄바꿈 구분) → ADF(Atlassian Document Format) 문단 목록 */
+function textToADF(text: string) {
+  const paragraphs = text.split('\n').filter(line => line.trim().length > 0)
+  return {
+    type: 'doc',
+    version: 1,
+    content: paragraphs.length > 0
+      ? paragraphs.map(line => ({ type: 'paragraph', content: [{ type: 'text', text: line }] }))
+      : [{ type: 'paragraph', content: [] }],
+  }
+}
+
+export interface CreateJiraIssueInput {
+  title: string
+  summary: string
+  request_team: string
+}
+
+export interface CreateJiraIssueResult {
+  key: string
+  link: string
+  status: string
+}
+
+export interface JiraPersonalCredentials {
+  email: string
+  apiToken: string
+}
+
+/**
+ * 수동 등록된 업무 건에 대해 새 Jira 이슈를 생성합니다.
+ * (지라 → Pharo-Sort 방향이 아니라, Pharo-Sort → 지라 방향)
+ * 실제 등록자로 남도록 팀원 개인 Jira 계정(email/API 토큰)으로 인증합니다.
+ */
+export async function createJiraIssue(
+  input: CreateJiraIssueInput,
+  credentials: JiraPersonalCredentials,
+): Promise<CreateJiraIssueResult> {
+  if (!JIRA_BASE_URL) {
+    throw new Error('Jira 환경 변수(JIRA_BASE_URL)가 설정되지 않았습니다.')
+  }
+
+  const authHeader = getAuthHeader(credentials.email, credentials.apiToken)
+
+  const createResponse = await fetch(`${JIRA_BASE_URL}/rest/api/3/issue`, {
+    method: 'POST',
+    headers: {
+      Authorization: authHeader,
+      'Content-Type': 'application/json',
+      Accept: 'application/json',
+    },
+    body: JSON.stringify({
+      fields: {
+        project:     { key: JIRA_PROJECT_KEY },
+        issuetype:   { name: JIRA_CREATE_ISSUE_TYPE },
+        summary:     input.title,
+        description: textToADF(input.summary),
+        labels:      [input.request_team, ...TARGET_LABELS].filter(Boolean),
+      },
+    }),
+  })
+
+  if (!createResponse.ok) {
+    const errorText = await createResponse.text()
+    throw new Error(`Jira 이슈 생성 오류 ${createResponse.status}: ${errorText}`)
+  }
+
+  const created = await createResponse.json() as { key: string }
+
+  // 생성 직후 상태값을 확인하기 위한 추가 조회 (실패해도 생성 자체는 성공 처리)
+  const detailResponse = await fetch(`${JIRA_BASE_URL}/rest/api/3/issue/${created.key}?fields=status`, {
+    headers: { Authorization: authHeader, Accept: 'application/json' },
+    cache: 'no-store',
+  })
+  const detail = detailResponse.ok ? await detailResponse.json() : null
+
+  return {
+    key:    created.key,
+    link:   `${JIRA_BASE_URL}/browse/${created.key}`,
+    status: detail?.fields?.status?.name ?? '해야 할 일',
+  }
 }

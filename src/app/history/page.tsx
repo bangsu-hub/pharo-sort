@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { getCurrentUser } from '@/lib/auth'
 
 const MEMBER_EMOJI: Record<string, string> = {
-  '구자영': '🐰', '윤난희': '🐮', '방수진': '🐹', '박종민': '🐑', '허주희': '🐴',
+  '구자영': '🐰', '윤난희': '🐮', '방수진': '🐷', '박종민': '🐑', '허주희': '🐴', '신지희': '🐯',
 }
 
 const ACTION_STYLE = {
@@ -184,10 +184,10 @@ export default function HistoryPage() {
                       </div>
                     )}
                     {log.action === 'create' && (
-                      <p className="text-xs text-gray-400 mt-0.5">새 요청이 등록되었습니다.</p>
+                      <p className="text-xs text-gray-400 mt-0.5">새 업무가 등록되었습니다.</p>
                     )}
                     {log.action === 'delete' && (
-                      <p className="text-xs text-red-400 mt-0.5">요청이 삭제되었습니다.</p>
+                      <p className="text-xs text-red-400 mt-0.5">업무가 삭제되었습니다.</p>
                     )}
                   </div>
 

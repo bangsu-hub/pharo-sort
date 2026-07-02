@@ -3,7 +3,7 @@ import { supabase } from '@/lib/supabase'
 import { logActivity } from '@/lib/logger'
 import { RequestInput } from '@/types'
 
-// GET /api/requests — 전체 요청 목록 조회
+// GET /api/requests — 전체 업무 목록 조회
 export async function GET() {
   const { data, error } = await supabase
     .from('requests')
@@ -14,7 +14,7 @@ export async function GET() {
   return NextResponse.json(data)
 }
 
-// POST /api/requests — 새 요청 등록
+// POST /api/requests — 새 업무 등록
 export async function POST(req: NextRequest) {
   const userName = decodeURIComponent(req.headers.get('x-user-name') || '')
 
@@ -29,7 +29,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: '기획건명은 필수 항목입니다.' }, { status: 400 })
   }
   if (!body.request_date) {
-    return NextResponse.json({ error: '요청일자는 필수 항목입니다.' }, { status: 400 })
+    return NextResponse.json({ error: '등록일자는 필수 항목입니다.' }, { status: 400 })
   }
 
   const { data, error } = await supabase

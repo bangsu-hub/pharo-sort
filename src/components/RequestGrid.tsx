@@ -1,5 +1,6 @@
 'use client'
 
+import { useState } from 'react'
 import { Request, Status } from '@/types'
 import StatusBadge from './StatusBadge'
 import JiraStatusBadge from './JiraStatusBadge'
@@ -25,6 +26,7 @@ interface Props {
   onAssigneeChange: (id: number, assignee: string) => void
   onDueDateChange: (id: number, date: string | null) => void
   onTeamChange: (id: number, team: string) => void
+  onCreateJiraIssue: (r: Request) => Promise<void>
 }
 
 function isOverdue(r: Request): boolean {
@@ -47,9 +49,20 @@ export default function RequestGrid({
   onToggleSelect, onToggleSelectAll,
   onEdit, onDeleteSingle,
   onStatusChange, onAssigneeChange, onDueDateChange, onTeamChange,
+  onCreateJiraIssue,
 }: Props) {
   const allSelected = requests.length > 0 && requests.every(r => selectedIds.has(r.id))
   const someSelected = requests.some(r => selectedIds.has(r.id))
+  const [creatingJiraId, setCreatingJiraId] = useState<number | null>(null)
+
+  const handleCreateJira = async (r: Request) => {
+    setCreatingJiraId(r.id)
+    try {
+      await onCreateJiraIssue(r)
+    } finally {
+      setCreatingJiraId(null)
+    }
+  }
 
   if (requests.length === 0) {
     return (
@@ -58,7 +71,7 @@ export default function RequestGrid({
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
             d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414A1 1 0 0119 9.414V19a2 2 0 01-2 2z"/>
         </svg>
-        <p className="text-sm">조건에 맞는 요청이 없습니다.</p>
+        <p className="text-sm">조건에 맞는 업무가 없습니다.</p>
       </div>
     )
   }
@@ -126,6 +139,7 @@ export default function RequestGrid({
                   <p className="text-gray-400 mb-0.5">요청팀</p>
                   <select value={r.request_team} onChange={e => onTeamChange(r.id, e.target.value)}
                     className="w-full border border-gray-200 rounded px-1.5 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-indigo-300">
+                    <option value="">미해당</option>
                     {REQUEST_TEAMS.map(t => <option key={t} value={t}>{t}</option>)}
                     {!REQUEST_TEAMS.includes(r.request_team) && r.request_team && (
                       <option value={r.request_team}>{r.request_team}</option>
@@ -173,6 +187,17 @@ export default function RequestGrid({
                   <JiraStatusBadge status={r.jira_status} />
                 </div>
               )}
+              {!r.jira_key && (
+                <div className="px-4 pb-3">
+                  <button
+                    onClick={() => handleCreateJira(r)}
+                    disabled={creatingJiraId === r.id}
+                    className="text-xs text-indigo-600 border border-indigo-200 rounded-lg px-2.5 py-1 hover:bg-indigo-50 disabled:opacity-50 transition-colors"
+                  >
+                    {creatingJiraId === r.id ? '생성 중...' : 'Jira 이슈 생성'}
+                  </button>
+                </div>
+              )}
             </div>
           )
         })}
@@ -199,18 +224,17 @@ export default function RequestGrid({
                   className="w-4 h-4 accent-indigo-600 cursor-pointer" />
               </th>
               <th className="w-12 text-center">No.</th>
-              <th className="w-24">요청일자</th>
-              <th className="w-24">요청팀</th>
-              <th className="w-20">요청자</th>
+              <th className="w-28">기획진행상태</th>
+              <th className="w-36">완료 예정일</th>
+              <th className="w-24">등록일자</th>
               <th className="min-w-[200px]">기획건명</th>
               <th className="min-w-[160px]">내용 요약</th>
-              <th className="w-20 text-center">우선순위</th>
               <th className="w-28">기획 담당자</th>
-              <th className="w-28">기획진행상태</th>
+              <th className="w-20">요청자</th>
               <th className="w-32">지라 보드 상태</th>
-              <th className="w-36">완료 예정일</th>
               <th className="w-20 text-center">지라</th>
               <th className="w-16 text-center">관리</th>
+              <th className="w-20 text-center">우선순위</th>
             </tr>
           </thead>
           <tbody>
@@ -229,18 +253,29 @@ export default function RequestGrid({
                       className="w-4 h-4 accent-indigo-600 cursor-pointer" />
                   </td>
                   <td className="text-center text-gray-400 text-xs">{r.id}</td>
-                  <td className="text-xs whitespace-nowrap">{r.request_date?.slice(0, 10) ?? '-'}</td>
                   <td>
-                    <select value={r.request_team} onChange={e => onTeamChange(r.id, e.target.value)}
-                      onClick={e => e.stopPropagation()}
-                      className="text-xs border border-gray-200 rounded px-1.5 py-1 focus:outline-none focus:ring-2 focus:ring-indigo-300 w-full">
-                      {REQUEST_TEAMS.map(t => <option key={t} value={t}>{t}</option>)}
-                      {!REQUEST_TEAMS.includes(r.request_team) && r.request_team && (
-                        <option value={r.request_team}>{r.request_team}</option>
-                      )}
-                    </select>
+                    <div className="flex flex-col gap-1">
+                      <select value={r.status} onChange={e => onStatusChange(r.id, e.target.value as Status)}
+                        onClick={e => e.stopPropagation()}
+                        className="text-xs border-0 bg-transparent focus:outline-none cursor-pointer">
+                        {STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
+                      </select>
+                      <StatusBadge status={r.status} />
+                    </div>
                   </td>
-                  <td className="text-xs">{r.requester}</td>
+                  <td>
+                    <input type="date" value={r.due_date ?? ''}
+                      onChange={e => onDueDateChange(r.id, e.target.value || null)}
+                      onClick={e => e.stopPropagation()}
+                      className={`text-xs border rounded px-1.5 py-1 focus:outline-none focus:ring-2 focus:ring-indigo-300 w-full ${overdue ? 'border-red-300 text-red-600 bg-red-50' : days !== null && days <= 3 && !done ? 'border-orange-300 text-orange-600' : 'border-gray-200 text-gray-600'}`}
+                    />
+                    {days !== null && !done && (
+                      <p className={`text-xs mt-0.5 ${overdue ? 'text-red-500' : days <= 3 ? 'text-orange-500' : 'text-gray-400'}`}>
+                        {days === 0 ? '오늘 마감' : days > 0 ? `D-${days}` : `D+${Math.abs(days)}`}
+                      </p>
+                    )}
+                  </td>
+                  <td className="text-xs whitespace-nowrap">{r.request_date?.slice(0, 10) ?? '-'}</td>
                   <td>
                     <div className="flex items-start gap-1.5">
                       {isNew && (
@@ -256,9 +291,6 @@ export default function RequestGrid({
                     </div>
                   </td>
                   <td><p className="text-xs text-gray-500 line-clamp-2 whitespace-pre-line">{r.summary || '—'}</p></td>
-                  <td className="text-center">
-                    <span className={`text-sm ${PRIORITY_STYLE[r.priority] ?? ''}`}>{r.priority}</span>
-                  </td>
                   <td>
                     <select value={r.assignee ?? ''} onChange={e => onAssigneeChange(r.id, e.target.value)}
                       onClick={e => e.stopPropagation()}
@@ -267,29 +299,8 @@ export default function RequestGrid({
                       {TEAM_MEMBERS.map(a => <option key={a} value={a}>{a}</option>)}
                     </select>
                   </td>
-                  <td>
-                    <div className="flex flex-col gap-1">
-                      <select value={r.status} onChange={e => onStatusChange(r.id, e.target.value as Status)}
-                        onClick={e => e.stopPropagation()}
-                        className="text-xs border-0 bg-transparent focus:outline-none cursor-pointer">
-                        {STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
-                      </select>
-                      <StatusBadge status={r.status} />
-                    </div>
-                  </td>
+                  <td className="text-xs">{r.requester}</td>
                   <td><JiraStatusBadge status={r.jira_status ?? null} /></td>
-                  <td>
-                    <input type="date" value={r.due_date ?? ''}
-                      onChange={e => onDueDateChange(r.id, e.target.value || null)}
-                      onClick={e => e.stopPropagation()}
-                      className={`text-xs border rounded px-1.5 py-1 focus:outline-none focus:ring-2 focus:ring-indigo-300 w-full ${overdue ? 'border-red-300 text-red-600 bg-red-50' : days !== null && days <= 3 && !done ? 'border-orange-300 text-orange-600' : 'border-gray-200 text-gray-600'}`}
-                    />
-                    {days !== null && !done && (
-                      <p className={`text-xs mt-0.5 ${overdue ? 'text-red-500' : days <= 3 ? 'text-orange-500' : 'text-gray-400'}`}>
-                        {days === 0 ? '오늘 마감' : days > 0 ? `D-${days}` : `D+${Math.abs(days)}`}
-                      </p>
-                    )}
-                  </td>
                   <td className="text-center">
                     {r.jira_link
                       ? <a href={r.jira_link} target="_blank" rel="noopener noreferrer"
@@ -301,7 +312,14 @@ export default function RequestGrid({
                               d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/>
                           </svg>
                         </a>
-                      : <span className="text-gray-300">—</span>
+                      : <button
+                          onClick={e => { e.stopPropagation(); handleCreateJira(r) }}
+                          disabled={creatingJiraId === r.id}
+                          className="text-xs text-indigo-600 border border-indigo-200 rounded px-1.5 py-0.5 hover:bg-indigo-50 disabled:opacity-50 transition-colors whitespace-nowrap"
+                          title="Jira 이슈 생성"
+                        >
+                          {creatingJiraId === r.id ? '생성 중...' : 'Jira 생성'}
+                        </button>
                     }
                   </td>
                   <td className="text-center">
@@ -319,6 +337,9 @@ export default function RequestGrid({
                         </svg>
                       </button>
                     </div>
+                  </td>
+                  <td className="text-center">
+                    <span className={`text-sm ${PRIORITY_STYLE[r.priority] ?? ''}`}>{r.priority}</span>
                   </td>
                 </tr>
               )

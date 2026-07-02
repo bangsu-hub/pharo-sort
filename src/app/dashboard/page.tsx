@@ -28,9 +28,10 @@ const STATUSES: Status[] = ['접수', '검토중', '기획중', '대기', '완�
 const MEMBER_STYLE: Record<string, { emoji: string; bg: string; ring: string; text: string }> = {
   '구자영': { emoji: '🐰', bg: 'from-pink-50 to-pink-100',   ring: 'ring-pink-300',   text: 'text-pink-700' },
   '윤난희': { emoji: '🐮', bg: 'from-violet-50 to-violet-100', ring: 'ring-violet-300', text: 'text-violet-700' },
-  '방수진': { emoji: '🐹', bg: 'from-amber-50 to-amber-100',  ring: 'ring-amber-300',  text: 'text-amber-700' },
+  '방수진': { emoji: '🐷', bg: 'from-amber-50 to-amber-100',  ring: 'ring-amber-300',  text: 'text-amber-700' },
   '박종민': { emoji: '🐑', bg: 'from-orange-50 to-orange-100', ring: 'ring-orange-300', text: 'text-orange-700' },
   '허주희': { emoji: '🐴', bg: 'from-teal-50 to-teal-100',    ring: 'ring-teal-300',   text: 'text-teal-700' },
+  '신지희': { emoji: '🐯', bg: 'from-sky-50 to-sky-100',     ring: 'ring-sky-300',    text: 'text-sky-700'  },
 }
 
 type MemberStats = {
@@ -121,12 +122,12 @@ export default function DashboardPage() {
             </div>
             <div>
               <h1 className="text-base font-bold text-gray-900 leading-tight">Pharo-Sort</h1>
-              <p className="hidden md:block text-xs text-gray-400">파로스 기획팀 요청 관리 시스템 / 파로스(Pharos) + 분류(Sort)</p>
+              <p className="hidden md:block text-xs text-gray-400">파로스 기획팀 업무 관리 시스템 / 파로스(Pharos) + 분류(Sort)</p>
             </div>
           </div>
           <nav className="hidden md:flex items-center gap-1.5 bg-gray-100 rounded-xl p-1">
             <a href="/" className="text-sm font-medium text-gray-500 hover:text-gray-700 px-4 py-1.5 rounded-lg transition-colors">
-              📋 요청 목록
+              📋 업무 목록
             </a>
             <span className="text-sm font-semibold text-white bg-indigo-600 px-4 py-1.5 rounded-lg shadow-sm">
               👥 담당자 대시보드
@@ -152,6 +153,9 @@ export default function DashboardPage() {
             <a href="/history" className="text-xs text-gray-400 hover:text-indigo-500 transition-colors whitespace-nowrap">
               변경이력보기
             </a>
+            <a href="/settings" className="text-xs text-gray-400 hover:text-indigo-500 transition-colors whitespace-nowrap">
+              ⚙️ 설정
+            </a>
           </div>
         </div>
       </header>
@@ -163,7 +167,7 @@ export default function DashboardPage() {
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
               d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
           </svg>
-          <span className="text-xs mt-0.5">요청 목록</span>
+          <span className="text-xs mt-0.5">업무 목록</span>
         </a>
         <span className="flex-1 flex flex-col items-center justify-center py-2.5 text-indigo-600 border-t-2 border-indigo-600">
           <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
@@ -240,7 +244,7 @@ export default function DashboardPage() {
         </div>
 
         {/* ── 담당자 카드 (가로 배열) ── */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 md:gap-4">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 xl:grid-cols-6 gap-3 md:gap-4">
           {memberStats.map(m => {
             const style   = MEMBER_STYLE[m.name] ?? { emoji: '🙂', bg: 'from-gray-50 to-gray-100', ring: 'ring-gray-300', text: 'text-gray-700' }
             const ratio   = Math.min(m.active / 5, 1)

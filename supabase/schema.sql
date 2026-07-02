@@ -50,6 +50,27 @@ CREATE INDEX IF NOT EXISTS idx_requests_due_date  ON requests(due_date);
 CREATE INDEX IF NOT EXISTS idx_requests_jira_key  ON requests(jira_key);
 
 -- ============================================================
+-- 팀원별 개인 Jira API 토큰
+-- (수동 등록 요청 → Jira 이슈 생성 시, 실제 실행한 사람 계정으로 등록되도록 함)
+-- ============================================================
+CREATE TABLE IF NOT EXISTS user_jira_credentials (
+  user_name       VARCHAR(50)  PRIMARY KEY,
+  jira_email      VARCHAR(255) NOT NULL,
+  jira_api_token  TEXT         NOT NULL,
+  updated_at      TIMESTAMPTZ  NOT NULL DEFAULT NOW()
+);
+
+DROP TRIGGER IF EXISTS set_updated_at ON user_jira_credentials;
+CREATE TRIGGER set_updated_at
+  BEFORE UPDATE ON user_jira_credentials
+  FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+ALTER TABLE user_jira_credentials ENABLE ROW LEVEL SECURITY;
+
+-- 개발/프로토타입용 전체 허용 정책 (운영 시 사용자 인증 기반으로 교체 권장)
+CREATE POLICY "allow_all" ON user_jira_credentials FOR ALL USING (true) WITH CHECK (true);
+
+-- ============================================================
 -- 샘플 데이터 (선택적으로 실행)
 -- ============================================================
 INSERT INTO requests (request_date, request_team, requester, title, summary, priority, assignee, status, due_date)

@@ -9,7 +9,7 @@ export const FIELD_LABELS: Record<string, string> = {
   title:        '제목',
   summary:      '내용요약',
   requester:    '요청자',
-  request_date: '요청일',
+  request_date: '등록일자',
   jira_link:    'Jira 링크',
   jira_key:     'Jira 키',
   jira_status:  'Jira 상태',

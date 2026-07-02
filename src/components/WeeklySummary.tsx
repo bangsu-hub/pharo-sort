@@ -61,7 +61,7 @@ export default function WeeklySummary({ requests }: Props) {
       ),
     },
     {
-      label: '미배정 요청',
+      label: '미배정 업무',
       value: stats.unassignedCount,
       sub:   '담당자 없음',
       bg:    stats.unassignedCount > 0 ? 'bg-yellow-50' : 'bg-gray-50',

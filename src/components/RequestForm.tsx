@@ -1,11 +1,18 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Request, RequestInput, Status, Priority } from '@/types'
 import { TEAM_MEMBERS, REQUEST_TEAMS } from '@/lib/constants'
 
 const STATUSES: Status[]     = ['접수', '검토중', '기획중', '완료']
 const PRIORITIES: Priority[] = ['★', '★★', '★★★']
+
+const IMAGE_MARKDOWN = /!\[[^\]]*\]\(([^)]+)\)/g
+
+/** 요약 텍스트 안에 포함된 이미지 마크다운(![이미지](url))을 전부 추출 */
+function extractImageUrls(text: string): string[] {
+  return Array.from(text.matchAll(IMAGE_MARKDOWN)).map(m => m[1])
+}
 
 const EMPTY: RequestInput = {
   request_date: new Date().toISOString().slice(0, 10),
@@ -48,14 +55,19 @@ function inputCls(err?: string) {
 
 interface Props {
   initial?: Request | null
+  currentUser?: string | null
   onSave: (data: RequestInput) => Promise<void>
   onClose: () => void
 }
 
-export default function RequestForm({ initial, onSave, onClose }: Props) {
+export default function RequestForm({ initial, currentUser, onSave, onClose }: Props) {
   const [form, setForm] = useState<RequestInput>(EMPTY)
   const [saving, setSaving] = useState(false)
   const [errors, setErrors] = useState<Record<string, string>>({})
+  const [uploading, setUploading] = useState(false)
+  const [uploadError, setUploadError] = useState<string | null>(null)
+  const [previewImage, setPreviewImage] = useState<string | null>(null)
+  const summaryRef = useRef<HTMLTextAreaElement>(null)
 
   useEffect(() => {
     if (initial) {
@@ -71,12 +83,49 @@ export default function RequestForm({ initial, onSave, onClose }: Props) {
   const update = (key: keyof RequestInput, value: string | null) =>
     setForm(f => ({ ...f, [key]: value }))
 
+  const handlePasteSummary = async (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    const item = Array.from(e.clipboardData.items).find(i => i.type.startsWith('image/'))
+    if (!item) return // 일반 텍스트 붙여넣기는 그대로 진행
+
+    e.preventDefault()
+    const file = item.getAsFile()
+    if (!file) return
+
+    setUploading(true)
+    setUploadError(null)
+    try {
+      const body = new FormData()
+      body.append('file', file)
+      const res = await fetch('/api/upload', { method: 'POST', body })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error ?? '이미지 업로드에 실패했습니다.')
+
+      const textarea = summaryRef.current
+      const insertion = `![이미지](${data.url})`
+      if (textarea) {
+        const start = textarea.selectionStart ?? form.summary.length
+        const end = textarea.selectionEnd ?? form.summary.length
+        const next = form.summary.slice(0, start) + insertion + form.summary.slice(end)
+        update('summary', next)
+      } else {
+        update('summary', form.summary ? `${form.summary}\n${insertion}` : insertion)
+      }
+    } catch (err) {
+      setUploadError(err instanceof Error ? err.message : String(err))
+    } finally {
+      setUploading(false)
+    }
+  }
+
+  const removeImage = (url: string) => {
+    const next = form.summary.replace(new RegExp(`!\\[[^\\]]*\\]\\(${url.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\)\\n?`), '')
+    update('summary', next)
+  }
+
   const validate = (): boolean => {
     const e: Record<string, string> = {}
-    if (!form.title.trim())        e.title = '기획건명을 입력하세요.'
-    if (!form.request_date)        e.request_date = '요청일자를 입력하세요.'
-    if (!form.request_team.trim()) e.request_team = '요청팀을 입력하세요.'
-    if (!form.requester.trim())    e.requester = '요청자를 입력하세요.'
+    if (!form.title.trim())        e.title = '업무명을 입력하세요.'
+    if (!form.request_date)        e.request_date = '등록일자를 입력하세요.'
     setErrors(e)
     return Object.keys(e).length === 0
   }
@@ -86,7 +135,8 @@ export default function RequestForm({ initial, onSave, onClose }: Props) {
     if (!validate()) return
     setSaving(true)
     try {
-      await onSave(form)
+      const requester = form.requester.trim() || form.assignee.trim() || currentUser || ''
+      await onSave({ ...form, requester })
       onClose()
     } finally {
       setSaving(false)
@@ -94,12 +144,13 @@ export default function RequestForm({ initial, onSave, onClose }: Props) {
   }
 
   return (
+    <>
     <div
       className="fixed inset-0 bg-black/40 flex items-end md:items-center justify-center z-50"
       onClick={onClose}
     >
       <div
-        className="bg-white w-full md:max-w-2xl md:mx-4 md:rounded-xl rounded-t-2xl shadow-2xl max-h-[92vh] md:max-h-[90vh] overflow-y-auto"
+        className="bg-white w-full md:max-w-3xl md:mx-4 md:rounded-xl rounded-t-2xl shadow-2xl max-h-[92vh] md:max-h-[92vh] overflow-y-auto"
         onClick={e => e.stopPropagation()}
       >
         {/* 모바일 드래그 핸들 */}
@@ -110,7 +161,7 @@ export default function RequestForm({ initial, onSave, onClose }: Props) {
         {/* 헤더 */}
         <div className="flex items-center justify-between px-4 md:px-6 py-4 border-b border-gray-100">
           <h2 className="text-lg font-semibold text-gray-800">
-            {initial ? '요청 수정' : '새 요청 등록'}
+            {initial ? '업무 수정' : '새 업무 등록'}
           </h2>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600 transition-colors">
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -121,9 +172,9 @@ export default function RequestForm({ initial, onSave, onClose }: Props) {
 
         {/* 폼 */}
         <form onSubmit={handleSubmit} className="px-4 md:px-6 py-4 md:py-5 space-y-4">
-          {/* Row 1: 요청일자 + 요청팀 */}
+          {/* Row 1: 등록일자 + 요청팀 */}
           <div className="grid grid-cols-2 gap-4">
-            <Field label="요청일자" required error={errors.request_date}>
+            <Field label="등록일자" required error={errors.request_date}>
               <input
                 type="date"
                 value={form.request_date}
@@ -131,13 +182,13 @@ export default function RequestForm({ initial, onSave, onClose }: Props) {
                 className={inputCls(errors.request_date)}
               />
             </Field>
-            <Field label="요청팀" required error={errors.request_team}>
+            <Field label="요청팀">
               <select
                 value={form.request_team}
                 onChange={e => update('request_team', e.target.value)}
-                className={inputCls(errors.request_team)}
+                className={inputCls()}
               >
-                <option value="">선택하세요</option>
+                <option value="">미해당 (개인 업무)</option>
                 {REQUEST_TEAMS.map(t => <option key={t} value={t}>{t}</option>)}
               </select>
             </Field>
@@ -145,13 +196,13 @@ export default function RequestForm({ initial, onSave, onClose }: Props) {
 
           {/* Row 2: 요청자 + 우선순위 */}
           <div className="grid grid-cols-2 gap-4">
-            <Field label="요청자" required error={errors.requester}>
+            <Field label="요청자">
               <input
                 type="text"
                 value={form.requester}
                 onChange={e => update('requester', e.target.value)}
-                placeholder="요청 담당자 성함"
-                className={inputCls(errors.requester)}
+                placeholder="비워두면 담당자로 자동 설정"
+                className={inputCls()}
               />
             </Field>
             <Field label="우선순위">
@@ -183,12 +234,43 @@ export default function RequestForm({ initial, onSave, onClose }: Props) {
           {/* 내용 요약 */}
           <Field label="내용 요약">
             <textarea
+              ref={summaryRef}
               value={form.summary}
               onChange={e => update('summary', e.target.value)}
-              placeholder="요구사항 요약 내용을 입력하세요"
-              rows={3}
-              className={`${inputCls()} resize-none`}
+              onPaste={handlePasteSummary}
+              placeholder="요구사항 요약 내용을 입력하세요 (이미지 붙여넣기 가능)"
+              rows={12}
+              className={`${inputCls()} resize-y min-h-[220px]`}
             />
+            {uploading && (
+              <p className="text-xs text-indigo-500 mt-1 flex items-center gap-1.5">
+                <svg className="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/>
+                </svg>
+                이미지 업로드 중...
+              </p>
+            )}
+            {uploadError && <p className="text-xs text-red-500 mt-1">{uploadError}</p>}
+            {extractImageUrls(form.summary).length > 0 && (
+              <div className="flex flex-wrap gap-2 mt-2">
+                {extractImageUrls(form.summary).map(url => (
+                  <div key={url} className="relative group">
+                    <button type="button" onClick={() => setPreviewImage(url)}>
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={url} alt="첨부 이미지" className="w-16 h-16 object-cover rounded-md border border-gray-200 hover:opacity-80 transition-opacity" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => removeImage(url)}
+                      className="absolute -top-1.5 -right-1.5 w-4 h-4 bg-gray-700 text-white rounded-full text-xs leading-none flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                    >
+                      ×
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
           </Field>
 
           {/* Row 3: 기획 담당자 + 기획진행상태 */}
@@ -255,5 +337,33 @@ export default function RequestForm({ initial, onSave, onClose }: Props) {
         </form>
       </div>
     </div>
+
+    {previewImage && (
+      <div
+        className="fixed inset-0 bg-black/80 flex items-center justify-center z-[60] p-4"
+        onClick={() => setPreviewImage(null)}
+      >
+        <div className="relative max-w-3xl max-h-[85vh]" onClick={e => e.stopPropagation()}>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={previewImage} alt="첨부 이미지 미리보기" className="max-w-full max-h-[85vh] rounded-lg shadow-2xl object-contain" />
+          <button
+            type="button"
+            onClick={() => setPreviewImage(null)}
+            className="absolute -top-3 -right-3 w-8 h-8 bg-white text-gray-700 rounded-full shadow-lg flex items-center justify-center hover:bg-gray-100 transition-colors"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12"/>
+            </svg>
+          </button>
+          <a
+            href={previewImage} target="_blank" rel="noopener noreferrer"
+            className="absolute bottom-2 right-2 text-xs bg-black/50 text-white px-2 py-1 rounded hover:bg-black/70 transition-colors"
+          >
+            새 탭에서 열기 →
+          </a>
+        </div>
+      </div>
+    )}
+    </>
   )
 }

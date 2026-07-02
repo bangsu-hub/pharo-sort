@@ -10,9 +10,10 @@ const MEMBER_STYLE: Record<string, {
 }> = {
   '구자영': { emoji: '🐰', bg: 'bg-pink-50',   border: 'border-pink-200 hover:border-pink-400',     text: 'text-pink-700'   },
   '윤난희': { emoji: '🐮', bg: 'bg-violet-50', border: 'border-violet-200 hover:border-violet-400', text: 'text-violet-700' },
-  '방수진': { emoji: '🐹', bg: 'bg-amber-50',  border: 'border-amber-200 hover:border-amber-400',   text: 'text-amber-700'  },
+  '방수진': { emoji: '🐷', bg: 'bg-amber-50',  border: 'border-amber-200 hover:border-amber-400',   text: 'text-amber-700'  },
   '박종민': { emoji: '🐑', bg: 'bg-orange-50', border: 'border-orange-200 hover:border-orange-400', text: 'text-orange-700' },
   '허주희': { emoji: '🐴', bg: 'bg-teal-50',   border: 'border-teal-200 hover:border-teal-400',     text: 'text-teal-700'   },
+  '신지희': { emoji: '🐯', bg: 'bg-sky-50',    border: 'border-sky-200 hover:border-sky-400',       text: 'text-sky-700'    },
 }
 
 export default function LoginPage() {
@@ -39,7 +40,7 @@ export default function LoginPage() {
           </svg>
         </div>
         <h1 className="text-2xl font-black text-gray-900 tracking-tight">Pharo-Sort</h1>
-        <p className="text-sm text-gray-400 mt-1">파로스 기획팀 요청 관리 시스템</p>
+        <p className="text-sm text-gray-400 mt-1">파로스 기획팀 업무 관리 시스템</p>
       </div>
 
       {/* 안내 */}
@@ -49,7 +50,7 @@ export default function LoginPage() {
       </div>
 
       {/* 멤버 카드 */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3 w-full max-w-2xl">
+      <div className="grid grid-cols-3 gap-3 w-full max-w-md">
         {TEAM_MEMBERS.map(name => {
           const s = MEMBER_STYLE[name] ?? {
             emoji: '🙂', bg: 'bg-gray-50', border: 'border-gray-200 hover:border-gray-400', text: 'text-gray-700',

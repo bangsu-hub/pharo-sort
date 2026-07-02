@@ -14,7 +14,7 @@ import ConfirmDialog from '@/components/ConfirmDialog'
 import GachaModal from '@/components/GachaModal'
 
 const MEMBER_EMOJI: Record<string, string> = {
-  '구자영': '🐰', '윤난희': '🐮', '방수진': '🐹', '박종민': '🐑', '허주희': '🐴',
+  '구자영': '🐰', '윤난희': '🐮', '방수진': '🐷', '박종민': '🐑', '허주희': '🐴', '신지희': '🐯',
 }
 
 const EMPTY_FILTERS: FilterState = {
@@ -216,7 +216,7 @@ export default function HomePage() {
       if (!res.ok) { addToast('error', '수정 실패'); return }
       const updated: Request = await res.json()
       setRequests(prev => prev.map(r => r.id === updated.id ? updated : r))
-      addToast('success', '요청이 수정되었습니다.')
+      addToast('success', '업무가 수정되었습니다.')
     } else {
       const res = await fetch('/api/requests', {
         method: 'POST',
@@ -226,7 +226,7 @@ export default function HomePage() {
       if (!res.ok) { addToast('error', '등록 실패'); return }
       const created: Request = await res.json()
       setRequests(prev => [created, ...prev])
-      addToast('success', '새 요청이 등록되었습니다.')
+      addToast('success', '새 업무가 등록되었습니다.')
     }
     setEditing(null)
     setShowForm(false)
@@ -256,6 +256,18 @@ export default function HomePage() {
     patchField(id, { due_date } as Partial<Request>, due_date ? `완료 예정일 → ${due_date}` : '완료 예정일 삭제')
   const handleTeamChange     = (id: number, request_team: string) =>
     patchField(id, { request_team }, `요청팀 → "${request_team}"`)
+
+  /* ── 수동 등록 업무 → Jira 이슈 생성 ── */
+  const handleCreateJiraIssue = async (r: Request) => {
+    const res = await fetch(`/api/requests/${r.id}/jira`, {
+      method: 'POST',
+      headers: { 'X-User-Name': encodeURIComponent(currentUser ?? '') },
+    })
+    const data = await res.json()
+    if (!res.ok) { addToast('error', data.error ?? 'Jira 이슈 생성 실패'); return }
+    setRequests(prev => prev.map(req => req.id === data.id ? data : req))
+    addToast('success', `${data.jira_key} 이슈가 생성되었습니다.`)
+  }
 
   /* ── Jira 동기화 ── */
   const handleJiraSync = async () => {
@@ -306,12 +318,12 @@ export default function HomePage() {
             </div>
             <div>
               <h1 className="text-base font-bold text-gray-900 leading-tight">Pharo-Sort</h1>
-              <p className="hidden md:block text-xs text-gray-400">파로스 기획팀 요청 관리 시스템 / 파로스(Pharos) + 분류(Sort)</p>
+              <p className="hidden md:block text-xs text-gray-400">파로스 기획팀 업무 관리 시스템 / 파로스(Pharos) + 분류(Sort)</p>
             </div>
           </div>
           <nav className="hidden md:flex items-center gap-1.5 bg-gray-100 rounded-xl p-1">
             <span className="text-sm font-semibold text-white bg-indigo-600 px-4 py-1.5 rounded-lg shadow-sm">
-              📋 요청 목록
+              📋 업무 목록
             </span>
             <a href="/dashboard" className="text-sm font-medium text-gray-500 hover:text-gray-700 px-4 py-1.5 rounded-lg transition-colors">
               👥 담당자 대시보드
@@ -331,6 +343,9 @@ export default function HomePage() {
           </button>
           <a href="/history" className="text-xs text-gray-400 hover:text-indigo-500 transition-colors whitespace-nowrap">
             변경이력보기
+          </a>
+          <a href="/settings" className="text-xs text-gray-400 hover:text-indigo-500 transition-colors whitespace-nowrap">
+            ⚙️ 설정
           </a>
           <button
             onClick={() => setShowGacha(true)}
@@ -404,7 +419,7 @@ export default function HomePage() {
             <span className="hidden sm:inline">{syncing ? 'Jira 동기화 중...' : 'Jira 동기화'}</span>
           </button>
 
-          {/* 새 요청 등록 */}
+          {/* 새 업무 등록 */}
           <button
             onClick={() => { setEditing(null); setShowForm(true) }}
             className="flex items-center gap-1.5 px-3 md:px-4 py-1.5 text-sm bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors font-medium"
@@ -412,7 +427,7 @@ export default function HomePage() {
             <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4"/>
             </svg>
-            <span className="hidden sm:inline">새 요청 등록</span>
+            <span className="hidden sm:inline">새 업무 등록</span>
             <span className="sm:hidden">등록</span>
           </button>
         </div>
@@ -424,7 +439,7 @@ export default function HomePage() {
           <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
             <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
           </svg>
-          <span className="text-xs font-bold mt-0.5">요청 목록</span>
+          <span className="text-xs font-bold mt-0.5">업무 목록</span>
         </span>
         <a href="/dashboard" className="flex-1 flex flex-col items-center justify-center py-2.5 text-gray-400 border-t-2 border-transparent">
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -499,6 +514,7 @@ export default function HomePage() {
                 onAssigneeChange={handleAssigneeChange}
                 onDueDateChange={handleDueDateChange}
                 onTeamChange={handleTeamChange}
+                onCreateJiraIssue={handleCreateJiraIssue}
               />
             )}
           </div>
@@ -531,6 +547,7 @@ export default function HomePage() {
       {showForm && (
         <RequestForm
           initial={editing}
+          currentUser={currentUser}
           onSave={handleSave}
           onClose={() => { setShowForm(false); setEditing(null) }}
         />
