@@ -7,6 +7,7 @@ import { TEAM_MEMBERS } from '@/lib/constants'
 import { getCurrentUser, clearCurrentUser } from '@/lib/auth'
 import JiraStatusBadge from '@/components/JiraStatusBadge'
 import WeeklySummary from '@/components/WeeklySummary'
+import MemberCalendar from '@/components/MemberCalendar'
 
 const STATUS_TEXT: Record<Status, string> = {
   '대기':   'text-gray-500 bg-gray-100',
@@ -340,6 +341,11 @@ export default function DashboardPage() {
                     </span>
                   ))}
                 </div>
+              </div>
+
+              {/* 담당자 일정 캘린더 (기획시작일자 ~ 기획완료예정일) */}
+              <div className="border-b border-gray-100">
+                <MemberCalendar issues={m.issues} />
               </div>
 
               {issues.length === 0 ? (

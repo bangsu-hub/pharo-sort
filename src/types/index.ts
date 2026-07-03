@@ -11,6 +11,7 @@ export interface Request {
   priority: Priority
   assignee: string
   status: Status
+  start_date: string | null   // 기획 시작일자
   due_date: string | null     // 기획 완료 예정일
   deploy_date: string | null  // 배포 예정일
   jira_link: string | null

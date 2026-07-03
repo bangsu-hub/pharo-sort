@@ -23,6 +23,7 @@ const EMPTY: RequestInput = {
   priority: '★★',
   assignee: '',
   status: '대기',
+  start_date: null,
   due_date: null,
   deploy_date: null,
   jira_link: null,
@@ -116,6 +117,17 @@ export default function RequestForm({ initial, currentUser, onSave, onClose }: P
     } finally {
       setUploading(false)
     }
+  }
+
+  /** '기획중'이 아니었다가 '기획중'으로 바뀌는 순간 기획시작일자가 비어있으면 오늘 날짜로 자동 세팅 (이미 값이 있으면 유지) */
+  const handleStatusChange = (next: Status) => {
+    setForm(f => ({
+      ...f,
+      status: next,
+      start_date: f.status !== '기획중' && next === '기획중' && !f.start_date
+        ? new Date().toISOString().slice(0, 10)
+        : f.start_date,
+    }))
   }
 
   const removeImage = (url: string) => {
@@ -274,8 +286,8 @@ export default function RequestForm({ initial, currentUser, onSave, onClose }: P
             )}
           </Field>
 
-          {/* Row 3: 기획 담당자 + 기획진행상태 */}
-          <div className="grid grid-cols-2 gap-4">
+          {/* Row 3: 기획 담당자 + 기획시작일자 + 기획진행상태 */}
+          <div className="grid grid-cols-3 gap-4">
             <Field label="기획 담당자">
               <select
                 value={form.assignee}
@@ -286,10 +298,18 @@ export default function RequestForm({ initial, currentUser, onSave, onClose }: P
                 {TEAM_MEMBERS.map(a => <option key={a} value={a}>{a}</option>)}
               </select>
             </Field>
+            <Field label="기획시작일자">
+              <input
+                type="date"
+                value={form.start_date ?? ''}
+                onChange={e => update('start_date', e.target.value || null)}
+                className={inputCls()}
+              />
+            </Field>
             <Field label="기획진행상태">
               <select
                 value={form.status}
-                onChange={e => update('status', e.target.value as Status)}
+                onChange={e => handleStatusChange(e.target.value as Status)}
                 className={inputCls()}
               >
                 {STATUSES.map(s => <option key={s} value={s}>{s}</option>)}

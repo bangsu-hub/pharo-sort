@@ -249,8 +249,15 @@ export default function HomePage() {
     }
   }
 
-  const handleStatusChange   = (id: number, status: Status) =>
-    patchField(id, { status }, `상태 → "${status}"`)
+  const handleStatusChange = (id: number, status: Status) => {
+    const current = requests.find(r => r.id === id)
+    const patch: Partial<Request> = { status }
+    // '기획중'이 아니었다가 '기획중'으로 바뀌는 경우, 기획시작일자가 비어있으면 오늘 날짜로 자동 설정
+    if (current && current.status !== '기획중' && status === '기획중' && !current.start_date) {
+      patch.start_date = new Date().toISOString().slice(0, 10)
+    }
+    patchField(id, patch, `상태 → "${status}"`)
+  }
   const handleAssigneeChange = (id: number, assignee: string) =>
     patchField(id, { assignee }, assignee ? `담당자 → "${assignee}"` : '담당자 해제')
   const handleDueDateChange  = (id: number, due_date: string | null) =>

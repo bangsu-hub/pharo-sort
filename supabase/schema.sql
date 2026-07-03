@@ -16,6 +16,7 @@ CREATE TABLE IF NOT EXISTS requests (
   assignee      VARCHAR(100)  DEFAULT '',
   status        VARCHAR(20)   NOT NULL DEFAULT '대기'
                               CHECK (status IN ('대기', '검토중', '기획중', '완료', '보류')),
+  start_date    DATE          DEFAULT NULL,  -- 기획 시작일자
   due_date      DATE          DEFAULT NULL,  -- 기획 완료 예정일
   deploy_date   DATE          DEFAULT NULL,  -- 배포 예정일
   jira_link     TEXT          DEFAULT NULL,
@@ -28,6 +29,7 @@ CREATE TABLE IF NOT EXISTS requests (
 -- 마이그레이션 (이미 requests 테이블이 있는 기존 DB에 적용)
 -- ============================================================
 ALTER TABLE requests ADD COLUMN IF NOT EXISTS deploy_date DATE DEFAULT NULL;
+ALTER TABLE requests ADD COLUMN IF NOT EXISTS start_date DATE DEFAULT NULL;
 
 -- 기존 status 체크 제약 제거 (제약 이름이 다를 수 있어 이름에 의존하지 않고 탐색 후 제거)
 -- 현재 제약은 '대기'조차 허용하지 않음 — 먼저 풀어야 아래 UPDATE가 통과됨
