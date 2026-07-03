@@ -1,4 +1,4 @@
-export type Status = '접수' | '검토중' | '기획중' | '대기' | '완료'
+export type Status = '대기' | '검토중' | '기획중' | '완료' | '보류'
 export type Priority = '★' | '★★' | '★★★'
 
 export interface Request {
@@ -11,7 +11,8 @@ export interface Request {
   priority: Priority
   assignee: string
   status: Status
-  due_date: string | null
+  due_date: string | null     // 기획 완료 예정일
+  deploy_date: string | null  // 배포 예정일
   jira_link: string | null
   jira_key: string | null
   jira_status: string | null  // 지라 보드 상태 (원본)

@@ -113,7 +113,7 @@ export default function TimelinePage() {
         body: JSON.stringify({ due_date: newDateStr }),
       })
       if (!res.ok) throw new Error('업데이트 실패')
-      addToast('info', newDateStr ? `완료 예정일 → ${newDateStr}` : '완료 예정일 삭제')
+      addToast('info', newDateStr ? `기획 완료 예정일 → ${newDateStr}` : '기획 완료 예정일 삭제')
     } catch {
       // 롤백
       setRequests(reqs => reqs.map(r => r.id === id ? { ...r, due_date: prev.due_date } : r))
@@ -223,7 +223,7 @@ export default function TimelinePage() {
               {' ~ '}
               <span className="text-indigo-600">{fridayStr.slice(8)}일(금)</span>
             </h2>
-            <p className="text-xs text-gray-400 mt-0.5">완료 예정일 기준으로 배치됩니다. 카드를 드래그해서 날짜를 변경하세요.</p>
+            <p className="text-xs text-gray-400 mt-0.5">기획 완료 예정일 기준으로 배치됩니다. 카드를 드래그해서 날짜를 변경하세요.</p>
           </div>
           <button
             onClick={() => setShowDone(v => !v)}
@@ -310,7 +310,7 @@ export default function TimelinePage() {
             </span>
           </h3>
           {unscheduled.length === 0 ? (
-            <p className="text-xs text-gray-400 text-center py-4">모든 건에 이번 주 완료 예정일이 설정되어 있습니다 🎉</p>
+            <p className="text-xs text-gray-400 text-center py-4">모든 건에 이번 주 기획 완료 예정일이 설정되어 있습니다 🎉</p>
           ) : (
             <div
               className={`flex flex-wrap gap-2 min-h-[60px] p-2 rounded-lg border-2 border-dashed transition-colors ${

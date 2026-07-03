@@ -1,18 +1,89 @@
 'use client'
 
-import { useState } from 'react'
-import { Request, Status } from '@/types'
+import { useEffect, useMemo, useState } from 'react'
+import { Request, Status, Priority } from '@/types'
 import StatusBadge from './StatusBadge'
 import JiraStatusBadge from './JiraStatusBadge'
 import { isAfter, parseISO, startOfToday, differenceInDays } from 'date-fns'
 import { TEAM_MEMBERS, REQUEST_TEAMS } from '@/lib/constants'
 
-const STATUSES: Status[] = ['접수', '검토중', '기획중', '대기', '완료']
+const STATUSES: Status[] = ['대기', '검토중', '기획중', '완료', '보류']
+const PRIORITIES: Priority[] = ['★', '★★', '★★★']
+const STATUS_ORDER: Record<string, number> = { '대기': 0, '검토중': 1, '기획중': 2, '완료': 3, '보류': 4 }
 
 const PRIORITY_STYLE: Record<string, string> = {
   '★':   'text-gray-400',
   '★★':  'text-orange-400 font-semibold',
   '★★★': 'text-red-500 font-bold',
+}
+
+type SortKey = 'id' | 'status' | 'due_date' | 'deploy_date' | 'request_date' | 'title' | 'summary' | 'assignee' | 'requester' | 'jira_status' | 'jira_key' | 'priority'
+type SortDir = 'asc' | 'desc' | null
+
+function getSortValue(r: Request, key: SortKey): string | number | null {
+  switch (key) {
+    case 'id':           return r.id
+    case 'status':       return STATUS_ORDER[r.status] ?? 99
+    case 'due_date':     return r.due_date
+    case 'deploy_date':  return r.deploy_date
+    case 'request_date': return r.request_date
+    case 'title':        return r.title
+    case 'summary':      return r.summary
+    case 'assignee':     return r.assignee || null
+    case 'requester':    return r.requester
+    case 'jira_status':  return r.jira_status
+    case 'jira_key':     return r.jira_key
+    case 'priority':     return r.priority
+  }
+}
+
+// ← 컴포넌트 밖으로 이동 (리렌더링마다 새 타입으로 인식되는 문제 방지)
+function ThSort({ label, active, dir, onClick, className }: {
+  label: string
+  active: boolean
+  dir: SortDir
+  onClick: () => void
+  className?: string
+}) {
+  return (
+    <th className={`cursor-pointer select-none hover:text-indigo-600 transition-colors ${className ?? ''}`} onClick={onClick}>
+      <span className="inline-flex items-center gap-0.5">
+        {label}
+        <span className={active && dir ? 'text-indigo-600' : 'text-gray-300'}>
+          {active && dir === 'asc' ? '▲' : active && dir === 'desc' ? '▼' : '↕'}
+        </span>
+      </span>
+    </th>
+  )
+}
+
+/**
+ * 네이티브 date input은 값이 비어있을 때 달력에서 월만 이동해도 브라우저가 일/연도를
+ * 자동완성해 change 이벤트를 바로 쏘는 경우가 있어, 즉시 저장 대신 blur 시점에만 반영한다.
+ */
+function DateCell({ value, onCommit, className, onClick }: {
+  value: string | null
+  onCommit: (v: string | null) => void
+  className?: string
+  onClick?: (e: React.MouseEvent<HTMLInputElement>) => void
+}) {
+  const [draft, setDraft] = useState(value ?? '')
+
+  useEffect(() => { setDraft(value ?? '') }, [value])
+
+  return (
+    <input
+      type="date"
+      value={draft}
+      onChange={e => setDraft(e.target.value)}
+      onBlur={() => {
+        const next = draft || null
+        if (next !== (value ?? null)) onCommit(next)
+      }}
+      onClick={onClick}
+      className={className}
+    />
+  )
 }
 
 interface Props {
@@ -25,7 +96,9 @@ interface Props {
   onStatusChange: (id: number, status: Status) => void
   onAssigneeChange: (id: number, assignee: string) => void
   onDueDateChange: (id: number, date: string | null) => void
+  onDeployDateChange: (id: number, date: string | null) => void
   onTeamChange: (id: number, team: string) => void
+  onPriorityChange: (id: number, priority: string) => void
   onCreateJiraIssue: (r: Request) => Promise<void>
 }
 
@@ -48,12 +121,43 @@ export default function RequestGrid({
   requests, selectedIds,
   onToggleSelect, onToggleSelectAll,
   onEdit, onDeleteSingle,
-  onStatusChange, onAssigneeChange, onDueDateChange, onTeamChange,
+  onStatusChange, onAssigneeChange, onDueDateChange, onDeployDateChange, onTeamChange, onPriorityChange,
   onCreateJiraIssue,
 }: Props) {
   const allSelected = requests.length > 0 && requests.every(r => selectedIds.has(r.id))
   const someSelected = requests.some(r => selectedIds.has(r.id))
   const [creatingJiraId, setCreatingJiraId] = useState<number | null>(null)
+  const [sortKey, setSortKey] = useState<SortKey | null>(null)
+  const [sortDir, setSortDir] = useState<SortDir>(null)
+
+  const handleSort = (key: SortKey) => {
+    if (sortKey !== key) {
+      setSortKey(key)
+      setSortDir('asc')
+    } else if (sortDir === 'asc') {
+      setSortDir('desc')
+    } else if (sortDir === 'desc') {
+      setSortKey(null)
+      setSortDir(null)
+    } else {
+      setSortDir('asc')
+    }
+  }
+
+  const sortedRequests = useMemo(() => {
+    if (!sortKey || !sortDir) return requests
+    const dir = sortDir === 'asc' ? 1 : -1
+    return [...requests].sort((a, b) => {
+      const av = getSortValue(a, sortKey)
+      const bv = getSortValue(b, sortKey)
+      if (av == null && bv == null) return 0
+      if (av == null) return 1
+      if (bv == null) return -1
+      if (av < bv) return -1 * dir
+      if (av > bv) return 1 * dir
+      return 0
+    })
+  }, [requests, sortKey, sortDir])
 
   const handleCreateJira = async (r: Request) => {
     setCreatingJiraId(r.id)
@@ -166,11 +270,10 @@ export default function RequestGrid({
                   </select>
                 </div>
 
-                {/* 완료 예정일 */}
+                {/* 기획 완료 예정일 */}
                 <div>
-                  <p className="text-gray-400 mb-0.5">완료 예정일</p>
-                  <input type="date" value={r.due_date ?? ''}
-                    onChange={e => onDueDateChange(r.id, e.target.value || null)}
+                  <p className="text-gray-400 mb-0.5">기획 완료 예정일</p>
+                  <DateCell value={r.due_date} onCommit={v => onDueDateChange(r.id, v)}
                     className={`w-full border rounded px-1.5 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-indigo-300 ${overdue ? 'border-red-300 text-red-600' : 'border-gray-200 text-gray-700'}`}
                   />
                   {days !== null && !done && (
@@ -178,6 +281,14 @@ export default function RequestGrid({
                       {days === 0 ? '오늘 마감' : days > 0 ? `D-${days}` : `D+${Math.abs(days)}`}
                     </p>
                   )}
+                </div>
+
+                {/* 배포예정일 */}
+                <div>
+                  <p className="text-gray-400 mb-0.5">배포예정일</p>
+                  <DateCell value={r.deploy_date} onCommit={v => onDeployDateChange(r.id, v)}
+                    className="w-full border rounded px-1.5 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-indigo-300 border-gray-200 text-gray-700"
+                  />
                 </div>
               </div>
 
@@ -223,22 +334,23 @@ export default function RequestGrid({
                   onChange={onToggleSelectAll}
                   className="w-4 h-4 accent-indigo-600 cursor-pointer" />
               </th>
-              <th className="w-12 text-center">No.</th>
-              <th className="w-28">기획진행상태</th>
-              <th className="w-36">완료 예정일</th>
-              <th className="w-24">등록일자</th>
-              <th className="min-w-[200px]">기획건명</th>
-              <th className="min-w-[160px]">내용 요약</th>
-              <th className="w-28">기획 담당자</th>
-              <th className="w-20">요청자</th>
-              <th className="w-32">지라 보드 상태</th>
-              <th className="w-20 text-center">지라</th>
+              <ThSort label="No."           active={sortKey === 'id'}           dir={sortDir} onClick={() => handleSort('id')}           className="w-12 text-center" />
+              <ThSort label="기획진행상태"    active={sortKey === 'status'}       dir={sortDir} onClick={() => handleSort('status')}       className="w-28" />
+              <ThSort label="기획 완료 예정일" active={sortKey === 'due_date'}     dir={sortDir} onClick={() => handleSort('due_date')}     className="w-36" />
+              <ThSort label="배포예정일"      active={sortKey === 'deploy_date'}  dir={sortDir} onClick={() => handleSort('deploy_date')}  className="w-32" />
+              <ThSort label="등록일자"        active={sortKey === 'request_date'} dir={sortDir} onClick={() => handleSort('request_date')} className="w-24" />
+              <ThSort label="기획건명"        active={sortKey === 'title'}        dir={sortDir} onClick={() => handleSort('title')}        className="min-w-[200px]" />
+              <ThSort label="내용 요약"       active={sortKey === 'summary'}      dir={sortDir} onClick={() => handleSort('summary')}      className="min-w-[160px]" />
+              <ThSort label="기획 담당자"     active={sortKey === 'assignee'}     dir={sortDir} onClick={() => handleSort('assignee')}     className="w-28" />
+              <ThSort label="요청자"         active={sortKey === 'requester'}    dir={sortDir} onClick={() => handleSort('requester')}    className="w-20" />
+              <ThSort label="지라 보드 상태"  active={sortKey === 'jira_status'}  dir={sortDir} onClick={() => handleSort('jira_status')}  className="w-32" />
+              <ThSort label="지라"           active={sortKey === 'jira_key'}     dir={sortDir} onClick={() => handleSort('jira_key')}     className="w-20 text-center" />
               <th className="w-16 text-center">관리</th>
-              <th className="w-20 text-center">우선순위</th>
+              <ThSort label="우선순위"       active={sortKey === 'priority'}     dir={sortDir} onClick={() => handleSort('priority')}     className="w-20 text-center" />
             </tr>
           </thead>
           <tbody>
-            {requests.map((r) => {
+            {sortedRequests.map((r) => {
               const overdue   = isOverdue(r)
               const done      = r.status === '완료'
               const days      = daysLeft(r.due_date)
@@ -264,8 +376,7 @@ export default function RequestGrid({
                     </div>
                   </td>
                   <td>
-                    <input type="date" value={r.due_date ?? ''}
-                      onChange={e => onDueDateChange(r.id, e.target.value || null)}
+                    <DateCell value={r.due_date} onCommit={v => onDueDateChange(r.id, v)}
                       onClick={e => e.stopPropagation()}
                       className={`text-xs border rounded px-1.5 py-1 focus:outline-none focus:ring-2 focus:ring-indigo-300 w-full ${overdue ? 'border-red-300 text-red-600 bg-red-50' : days !== null && days <= 3 && !done ? 'border-orange-300 text-orange-600' : 'border-gray-200 text-gray-600'}`}
                     />
@@ -274,6 +385,12 @@ export default function RequestGrid({
                         {days === 0 ? '오늘 마감' : days > 0 ? `D-${days}` : `D+${Math.abs(days)}`}
                       </p>
                     )}
+                  </td>
+                  <td>
+                    <DateCell value={r.deploy_date} onCommit={v => onDeployDateChange(r.id, v)}
+                      onClick={e => e.stopPropagation()}
+                      className="text-xs border rounded px-1.5 py-1 focus:outline-none focus:ring-2 focus:ring-indigo-300 w-full border-gray-200 text-gray-600"
+                    />
                   </td>
                   <td className="text-xs whitespace-nowrap">{r.request_date?.slice(0, 10) ?? '-'}</td>
                   <td>
@@ -339,7 +456,11 @@ export default function RequestGrid({
                     </div>
                   </td>
                   <td className="text-center">
-                    <span className={`text-sm ${PRIORITY_STYLE[r.priority] ?? ''}`}>{r.priority}</span>
+                    <select value={r.priority} onChange={e => onPriorityChange(r.id, e.target.value)}
+                      onClick={e => e.stopPropagation()}
+                      className={`text-sm border-0 bg-transparent focus:outline-none cursor-pointer text-center ${PRIORITY_STYLE[r.priority] ?? ''}`}>
+                      {PRIORITIES.map(p => <option key={p} value={p}>{p}</option>)}
+                    </select>
                   </td>
                 </tr>
               )

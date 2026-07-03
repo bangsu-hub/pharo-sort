@@ -9,20 +9,20 @@ import JiraStatusBadge from '@/components/JiraStatusBadge'
 import WeeklySummary from '@/components/WeeklySummary'
 
 const STATUS_TEXT: Record<Status, string> = {
-  '접수':   'text-blue-700 bg-blue-100',
+  '대기':   'text-gray-500 bg-gray-100',
   '검토중': 'text-yellow-700 bg-yellow-100',
   '기획중': 'text-purple-700 bg-purple-100',
-  '대기':   'text-gray-500 bg-gray-100',
   '완료':   'text-green-700 bg-green-100',
+  '보류':   'text-red-500 bg-red-50',
 }
 const STATUS_BAR: Record<Status, string> = {
-  '접수':   'bg-blue-400',
+  '대기':   'bg-gray-400',
   '검토중': 'bg-yellow-400',
   '기획중': 'bg-purple-400',
-  '대기':   'bg-gray-400',
   '완료':   'bg-green-400',
+  '보류':   'bg-red-400',
 }
-const STATUSES: Status[] = ['접수', '검토중', '기획중', '대기', '완료']
+const STATUSES: Status[] = ['대기', '검토중', '기획중', '완료', '보류']
 
 // 담당자별 귀여운 동물 아이콘 & 카드 색상
 const MEMBER_STYLE: Record<string, { emoji: string; bg: string; ring: string; text: string }> = {
@@ -68,7 +68,7 @@ export default function DashboardPage() {
       const byStatus = Object.fromEntries(
         STATUSES.map(s => [s, mine.filter(r => r.status === s).length])
       ) as Record<Status, number>
-      return { name, total: mine.length, active: mine.filter(r => r.status !== '완료').length, byStatus, issues: mine }
+      return { name, total: mine.length, active: mine.filter(r => r.status === '검토중' || r.status === '기획중').length, byStatus, issues: mine }
     })
   }, [requests])
 
@@ -76,7 +76,7 @@ export default function DashboardPage() {
 
   const totalStats = useMemo(() => ({
     total:   requests.length,
-    active:  requests.filter(r => r.status !== '완료').length,
+    active:  requests.filter(r => r.status === '검토중' || r.status === '기획중').length,
     overdue: requests.filter(r => {
       if (!r.due_date || r.status === '완료') return false
       return new Date(r.due_date) < new Date(new Date().toDateString())

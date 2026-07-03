@@ -27,7 +27,7 @@ function mapJiraStatus(jiraStatus: string): Status {
   const s = jiraStatus.toLowerCase()
   if (s.includes('done') || s.includes('closed') || s.includes('완료') || s.includes('resolved')) return '완료'
   if (s.includes('progress') || s.includes('진행') || s.includes('review')) return '기획중'
-  if (s.includes('open') || s.includes('todo') || s.includes('접수')) return '접수'
+  if (s.includes('open') || s.includes('todo') || s.includes('접수')) return '대기'
   return '검토중'
 }
 

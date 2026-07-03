@@ -93,7 +93,7 @@ export default function HomePage() {
       if (!r.assignee || !map.has(r.assignee)) continue
       const item = map.get(r.assignee)!
       item.total++
-      if (r.status !== '완료') item.active++
+      if (r.status === '검토중' || r.status === '기획중') item.active++
     }
     return Array.from(map.values())
   }, [requests])
@@ -116,7 +116,8 @@ export default function HomePage() {
       }
       if (q && !r.title.toLowerCase().includes(q) &&
                !r.requester.toLowerCase().includes(q) &&
-               !r.summary.toLowerCase().includes(q)) return false
+               !r.summary.toLowerCase().includes(q) &&
+               !(r.jira_key ?? '').toLowerCase().includes(q)) return false
       return true
     })
     // 기한 초과 + 미완료 건을 맨 앞에 고정
@@ -128,7 +129,7 @@ export default function HomePage() {
   }, [requests, filters, currentUser])
 
   const stats = useMemo(() => ({
-    접수:   requests.filter(r => r.status === '접수').length,
+    대기:   requests.filter(r => r.status === '대기').length,
     검토중: requests.filter(r => r.status === '검토중').length,
     기획중: requests.filter(r => r.status === '기획중').length,
     완료:   requests.filter(r => r.status === '완료').length,
@@ -253,9 +254,13 @@ export default function HomePage() {
   const handleAssigneeChange = (id: number, assignee: string) =>
     patchField(id, { assignee }, assignee ? `담당자 → "${assignee}"` : '담당자 해제')
   const handleDueDateChange  = (id: number, due_date: string | null) =>
-    patchField(id, { due_date } as Partial<Request>, due_date ? `완료 예정일 → ${due_date}` : '완료 예정일 삭제')
+    patchField(id, { due_date } as Partial<Request>, due_date ? `기획 완료 예정일 → ${due_date}` : '기획 완료 예정일 삭제')
+  const handleDeployDateChange = (id: number, deploy_date: string | null) =>
+    patchField(id, { deploy_date } as Partial<Request>, deploy_date ? `배포예정일 → ${deploy_date}` : '배포예정일 삭제')
   const handleTeamChange     = (id: number, request_team: string) =>
     patchField(id, { request_team }, `요청팀 → "${request_team}"`)
+  const handlePriorityChange = (id: number, priority: string) =>
+    patchField(id, { priority } as Partial<Request>, `우선순위 → "${priority}"`)
 
   /* ── 수동 등록 업무 → Jira 이슈 생성 ── */
   const handleCreateJiraIssue = async (r: Request) => {
@@ -361,7 +366,7 @@ export default function HomePage() {
           <div className="hidden md:flex items-center gap-2 text-xs">
             {(
               [
-                { label: '접수',   count: stats.접수,   color: 'bg-blue-100 text-blue-700 hover:bg-blue-200',     active: 'ring-2 ring-blue-400' },
+                { label: '대기',   count: stats.대기,   color: 'bg-gray-100 text-gray-600 hover:bg-gray-200',     active: 'ring-2 ring-gray-400' },
                 { label: '검토중', count: stats.검토중, color: 'bg-yellow-100 text-yellow-700 hover:bg-yellow-200', active: 'ring-2 ring-yellow-400' },
                 { label: '기획중', count: stats.기획중, color: 'bg-purple-100 text-purple-700 hover:bg-purple-200', active: 'ring-2 ring-purple-400' },
                 { label: '완료',   count: stats.완료,   color: 'bg-green-100 text-green-700 hover:bg-green-200',   active: 'ring-2 ring-green-400' },
@@ -384,7 +389,7 @@ export default function HomePage() {
 
           {/* 모바일 상태 요약 칩 */}
           <div className="flex md:hidden items-center gap-1 text-xs">
-            <span className="bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full font-medium">{stats.접수}</span>
+            <span className="bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full font-medium">{stats.대기}</span>
             <span className="bg-yellow-100 text-yellow-700 px-2 py-0.5 rounded-full font-medium">{stats.검토중}</span>
             <span className="bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full font-medium">{stats.기획중}</span>
             <span className="bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-medium">{stats.완료}</span>
@@ -513,7 +518,9 @@ export default function HomePage() {
                 onStatusChange={handleStatusChange}
                 onAssigneeChange={handleAssigneeChange}
                 onDueDateChange={handleDueDateChange}
+                onDeployDateChange={handleDeployDateChange}
                 onTeamChange={handleTeamChange}
+                onPriorityChange={handlePriorityChange}
                 onCreateJiraIssue={handleCreateJiraIssue}
               />
             )}
@@ -531,7 +538,7 @@ export default function HomePage() {
       <footer className="hidden md:flex px-5 py-3 border-t border-gray-100 bg-white items-center gap-6 text-xs text-gray-400">
         <div className="flex items-center gap-2">
           <span className="w-4 h-3 rounded bg-red-100 border border-red-200 inline-block" />
-          완료 예정일 초과 (지연)
+          기획 완료 예정일 초과 (지연)
         </div>
         <div className="flex items-center gap-2">
           <span className="w-4 h-3 rounded bg-indigo-100 border border-indigo-200 inline-block" />

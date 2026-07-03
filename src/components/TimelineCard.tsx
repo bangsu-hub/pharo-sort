@@ -14,11 +14,11 @@ const PRIORITY_COLOR: Record<string, string> = {
 }
 
 const STATUS_COLORS: Record<string, string> = {
-  '접수':   'bg-blue-100 text-blue-700',
+  '대기':   'bg-gray-100 text-gray-500',
   '검토중': 'bg-yellow-100 text-yellow-700',
   '기획중': 'bg-purple-100 text-purple-700',
-  '대기':   'bg-gray-100 text-gray-500',
   '완료':   'bg-green-100 text-green-700',
+  '보류':   'bg-red-50 text-red-500',
 }
 
 interface Props {

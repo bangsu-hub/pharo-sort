@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from 'react'
 import { Request, RequestInput, Status, Priority } from '@/types'
 import { TEAM_MEMBERS, REQUEST_TEAMS } from '@/lib/constants'
 
-const STATUSES: Status[]     = ['접수', '검토중', '기획중', '완료']
+const STATUSES: Status[]     = ['대기', '검토중', '기획중', '완료', '보류']
 const PRIORITIES: Priority[] = ['★', '★★', '★★★']
 
 const IMAGE_MARKDOWN = /!\[[^\]]*\]\(([^)]+)\)/g
@@ -22,8 +22,9 @@ const EMPTY: RequestInput = {
   summary: '',
   priority: '★★',
   assignee: '',
-  status: '접수',
+  status: '대기',
   due_date: null,
+  deploy_date: null,
   jira_link: null,
   jira_key: null,
   jira_status: null,
@@ -296,9 +297,9 @@ export default function RequestForm({ initial, currentUser, onSave, onClose }: P
             </Field>
           </div>
 
-          {/* Row 4: 완료 예정일 + 지라 링크 */}
+          {/* Row 4: 기획 완료 예정일 + 배포예정일 */}
           <div className="grid grid-cols-2 gap-4">
-            <Field label="완료 예정일">
+            <Field label="기획 완료 예정일">
               <input
                 type="date"
                 value={form.due_date ?? ''}
@@ -306,16 +307,26 @@ export default function RequestForm({ initial, currentUser, onSave, onClose }: P
                 className={inputCls()}
               />
             </Field>
-            <Field label="지라 링크">
+            <Field label="배포예정일">
               <input
-                type="url"
-                value={form.jira_link ?? ''}
-                onChange={e => update('jira_link', e.target.value || null)}
-                placeholder="https://..."
+                type="date"
+                value={form.deploy_date ?? ''}
+                onChange={e => update('deploy_date', e.target.value || null)}
                 className={inputCls()}
               />
             </Field>
           </div>
+
+          {/* Row 5: 지라 링크 */}
+          <Field label="지라 링크">
+            <input
+              type="url"
+              value={form.jira_link ?? ''}
+              onChange={e => update('jira_link', e.target.value || null)}
+              placeholder="https://..."
+              className={inputCls()}
+            />
+          </Field>
 
           {/* 버튼 */}
           <div className="flex justify-end gap-3 pt-2 border-t border-gray-100 mt-2">

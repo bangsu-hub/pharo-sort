@@ -35,7 +35,7 @@ export async function syncJiraIssues(): Promise<JiraSyncSummary> {
   let errors = 0
 
   if (toInsert.length > 0) {
-    const rows = toInsert.map(i => ({ ...i, status: '접수' }))
+    const rows = toInsert.map(i => ({ ...i, status: '대기' }))
     const { error } = await supabase.from('requests').insert(rows)
     if (error) {
       console.error('Jira INSERT 오류:', error.message)

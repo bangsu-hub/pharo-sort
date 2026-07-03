@@ -32,7 +32,7 @@ export default function WorkloadPanel({ workload, selectedAssignee, onSelect }: 
   return (
     <aside className="w-full md:w-60 md:shrink-0 bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
       <h2 className="text-sm font-semibold text-gray-700 mb-1">업무 부하 현황</h2>
-      <p className="text-xs text-gray-400 mb-4">진행 중 기준 (완료 제외)</p>
+      <p className="text-xs text-gray-400 mb-4">검토중·기획중 기준</p>
 
       {/* 데스크톱: 세로 목록 */}
       <ul className="hidden md:block space-y-3">

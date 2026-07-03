@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { FilterState, Priority, Status } from '@/types'
 import { TEAM_MEMBERS, REQUEST_TEAMS } from '@/lib/constants'
 
-const STATUSES: Status[]     = ['접수', '검토중', '기획중', '대기', '완료']
+const STATUSES: Status[]     = ['대기', '검토중', '기획중', '완료', '보류']
 const PRIORITIES: Priority[] = ['★', '★★', '★★★']
 
 // Jira 보드 상태 목록 (API 반환값 기준)
@@ -72,7 +72,7 @@ export default function FilterBar({ filters, onChange, onReset, currentUser }: P
           </svg>
           <input
             type="text"
-            placeholder="건명 / 요청자 검색"
+            placeholder="건명 / 요청자 / 지라번호 검색"
             value={filters.search}
             onChange={e => update('search', e.target.value)}
             className="pl-8 pr-3 py-1.5 text-sm border border-gray-200 rounded-md w-44 focus:outline-none focus:ring-2 focus:ring-indigo-300"

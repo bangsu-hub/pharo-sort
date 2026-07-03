@@ -14,14 +14,42 @@ CREATE TABLE IF NOT EXISTS requests (
   priority      VARCHAR(10)   NOT NULL DEFAULT '★'
                               CHECK (priority IN ('★', '★★', '★★★')),
   assignee      VARCHAR(100)  DEFAULT '',
-  status        VARCHAR(20)   NOT NULL DEFAULT '접수'
-                              CHECK (status IN ('접수', '검토중', '기획중', '완료')),
-  due_date      DATE          DEFAULT NULL,
+  status        VARCHAR(20)   NOT NULL DEFAULT '대기'
+                              CHECK (status IN ('대기', '검토중', '기획중', '완료', '보류')),
+  due_date      DATE          DEFAULT NULL,  -- 기획 완료 예정일
+  deploy_date   DATE          DEFAULT NULL,  -- 배포 예정일
   jira_link     TEXT          DEFAULT NULL,
   jira_key      VARCHAR(50)   UNIQUE DEFAULT NULL,  -- 지라 티켓 키 (중복 방지)
   created_at    TIMESTAMPTZ   NOT NULL DEFAULT NOW(),
   updated_at    TIMESTAMPTZ   NOT NULL DEFAULT NOW()
 );
+
+-- ============================================================
+-- 마이그레이션 (이미 requests 테이블이 있는 기존 DB에 적용)
+-- ============================================================
+ALTER TABLE requests ADD COLUMN IF NOT EXISTS deploy_date DATE DEFAULT NULL;
+
+-- 기존 status 체크 제약 제거 (제약 이름이 다를 수 있어 이름에 의존하지 않고 탐색 후 제거)
+-- 현재 제약은 '대기'조차 허용하지 않음 — 먼저 풀어야 아래 UPDATE가 통과됨
+DO $$
+DECLARE con_name text;
+BEGIN
+  SELECT conname INTO con_name
+  FROM pg_constraint
+  WHERE conrelid = 'requests'::regclass AND contype = 'c'
+    AND pg_get_constraintdef(oid) ILIKE '%status%';
+  IF con_name IS NOT NULL THEN
+    EXECUTE format('ALTER TABLE requests DROP CONSTRAINT %I', con_name);
+  END IF;
+END $$;
+
+-- 기존 '접수' 상태를 새 워크플로우의 시작 상태인 '대기'로 이관
+UPDATE requests SET status = '대기' WHERE status = '접수';
+
+-- 새 체크 제약 추가
+ALTER TABLE requests ADD CONSTRAINT requests_status_check
+  CHECK (status IN ('대기', '검토중', '기획중', '완료', '보류'));
+ALTER TABLE requests ALTER COLUMN status SET DEFAULT '대기';
 
 -- updated_at 자동 갱신 트리거
 CREATE OR REPLACE FUNCTION update_updated_at_column()

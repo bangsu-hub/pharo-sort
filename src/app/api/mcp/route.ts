@@ -10,7 +10,7 @@ import { createJiraIssueForRequest } from '@/lib/createJiraIssueForRequest'
 import { isAuthorized } from '@/lib/mcpAuth'
 import { Request as PSRequest, Status } from '@/types'
 
-const STATUSES: Status[] = ['접수', '검토중', '기획중', '대기', '완료']
+const STATUSES: Status[] = ['대기', '검토중', '기획중', '완료', '보류']
 
 function text(data: unknown) {
   return { content: [{ type: 'text' as const, text: JSON.stringify(data, null, 2) }] }
@@ -68,7 +68,7 @@ const handler = createMcpHandler(
           jira_status:     z.string().optional().describe('지라 보드 상태 원본 (예: STG 테스트요청)'),
           unassigned_only: z.boolean().optional().describe('담당자 미배정 건만 조회'),
           exclude_done:    z.boolean().optional().describe('완료 건 제외'),
-          search:          z.string().optional().describe('제목/요청자/요약 검색어'),
+          search:          z.string().optional().describe('제목/요청자/요약/지라이슈번호 검색어'),
           limit:           z.number().int().min(1).max(200).optional().describe('최대 반환 건수 (기본 50)'),
         },
       },
@@ -88,7 +88,8 @@ const handler = createMcpHandler(
           rows = rows.filter(r =>
             r.title.toLowerCase().includes(q) ||
             r.requester.toLowerCase().includes(q) ||
-            r.summary.toLowerCase().includes(q))
+            r.summary.toLowerCase().includes(q) ||
+            (r.jira_key ?? '').toLowerCase().includes(q))
         }
 
         return text(rows.slice(0, limit ?? 50))
@@ -153,7 +154,7 @@ const handler = createMcpHandler(
       'ps_list_overdue',
       {
         title: '지연 건 조회',
-        description: '완료 예정일이 지났고 아직 완료되지 않은 업무를 조회합니다.',
+        description: '기획 완료 예정일이 지났고 아직 완료되지 않은 업무를 조회합니다.',
         inputSchema: {},
       },
       async () => {
@@ -215,7 +216,7 @@ const handler = createMcpHandler(
           request_team: z.string().optional().describe(`요청팀 (${REQUEST_TEAMS.join('/')}), 개인 업무면 미지정`),
           priority:     z.enum(['★', '★★', '★★★']).optional().describe('우선순위 (기본 ★★)'),
           assignee:     z.string().optional().describe(`담당자 (${TEAM_MEMBERS.join('/')}), 미지정 시 미배정`),
-          due_date:     z.string().optional().describe('완료 예정일 (YYYY-MM-DD)'),
+          due_date:     z.string().optional().describe('기획 완료 예정일 (YYYY-MM-DD)'),
         },
       },
       async ({ user_name, title, summary, requester, request_date, request_team, priority, assignee, due_date }) => {
@@ -227,7 +228,7 @@ const handler = createMcpHandler(
           request_team: request_team ?? '',
           priority: priority ?? '★★',
           assignee: assignee ?? '',
-          status:   '접수' as Status,
+          status:   '대기' as Status,
           due_date: due_date ?? null,
           jira_link: null, jira_key: null, jira_status: null,
         }
@@ -288,12 +289,12 @@ const handler = createMcpHandler(
     server.registerTool(
       'ps_set_due_date',
       {
-        title: '완료 예정일 변경',
-        description: '업무의 완료 예정일을 설정하거나 삭제합니다.',
+        title: '기획 완료 예정일 변경',
+        description: '업무의 기획 완료 예정일을 설정하거나 삭제합니다.',
         inputSchema: {
           user_name: z.string().describe('처리자 이름 (변경 이력에 기록됨)'),
           id:        z.number().int().describe('업무 ID'),
-          due_date:  z.string().nullable().describe('완료 예정일 (YYYY-MM-DD), null이면 삭제'),
+          due_date:  z.string().nullable().describe('기획 완료 예정일 (YYYY-MM-DD), null이면 삭제'),
         },
       },
       async ({ user_name, id, due_date }) => {

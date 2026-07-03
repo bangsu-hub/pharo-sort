@@ -3,7 +3,8 @@ import { supabase } from './supabase'
 export const FIELD_LABELS: Record<string, string> = {
   assignee:     '담당자',
   status:       '기획진행상태',
-  due_date:     '완료예정일',
+  due_date:     '기획완료예정일',
+  deploy_date:  '배포예정일',
   request_team: '요청팀',
   priority:     '우선순위',
   title:        '제목',

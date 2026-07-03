@@ -12,16 +12,16 @@ export const MCP_READ_TOOLS: McpToolMeta[] = [
   { name: 'ps_get_request',       description: '업무 ID로 상세 1건 조회' },
   { name: 'ps_list_my_requests',  description: '특정 담당자의 담당 건 조회' },
   { name: 'ps_workload_summary',  description: '담당자별 전체/진행중 건수 요약' },
-  { name: 'ps_list_overdue',      description: '완료예정일 초과 + 미완료 건 조회' },
+  { name: 'ps_list_overdue',      description: '기획완료예정일 초과 + 미완료 건 조회' },
   { name: 'ps_list_stg_required', description: 'STG 테스트요청 상태 건 조회' },
   { name: 'ps_list_activity_log', description: '등록/수정/삭제 변경 이력 조회' },
 ]
 
 export const MCP_WRITE_TOOLS: McpToolMeta[] = [
-  { name: 'ps_create_request',    description: '새 업무 수동 등록 (접수 상태로 시작, 요청팀/요청자는 선택 입력)' },
+  { name: 'ps_create_request',    description: '새 업무 수동 등록 (대기 상태로 시작, 요청팀/요청자는 선택 입력)' },
   { name: 'ps_update_status',     description: '기획진행상태 변경' },
   { name: 'ps_assign',            description: '담당자 배정/해제' },
-  { name: 'ps_set_due_date',      description: '완료예정일 설정/삭제' },
+  { name: 'ps_set_due_date',      description: '기획완료예정일 설정/삭제' },
   { name: 'ps_sync_jira',         description: '지라 → Pharo-Sort 동기화 트리거' },
   { name: 'ps_create_jira_issue', description: '수동 등록 업무 → 신규 Jira 이슈 생성 후 연결 (처리자 개인 Jira 계정 필요)' },
 ]
