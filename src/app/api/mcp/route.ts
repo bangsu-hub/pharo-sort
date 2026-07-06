@@ -308,6 +308,27 @@ const handler = createMcpHandler(
     )
 
     server.registerTool(
+      'ps_set_deploy_date',
+      {
+        title: '배포예정일 변경',
+        description: '업무의 배포예정일을 설정하거나 삭제합니다.',
+        inputSchema: {
+          user_name:   z.string().describe('처리자 이름 (변경 이력에 기록됨)'),
+          id:          z.number().int().describe('업무 ID'),
+          deploy_date: z.string().nullable().describe('배포예정일 (YYYY-MM-DD), null이면 삭제'),
+        },
+      },
+      async ({ user_name, id, deploy_date }) => {
+        try {
+          const updated = await patchRequest(id, { deploy_date } as Partial<PSRequest>, user_name)
+          return updated ? text(updated) : errorText(`업무 #${id}를 찾을 수 없습니다.`)
+        } catch (e) {
+          return errorText(e instanceof Error ? e.message : String(e))
+        }
+      }
+    )
+
+    server.registerTool(
       'ps_sync_jira',
       {
         title: 'Jira 동기화',
