@@ -48,3 +48,21 @@ export interface JiraSyncResult {
   errors: number
   issues: Partial<Request>[]
 }
+
+export type FeedbackType = '버그' | '개선요청' | '신규기능'
+export type FeedbackStatus = '접수' | '확인중' | '반영완료' | '반려'
+
+export interface Feedback {
+  id: number
+  user_name: string
+  page: string
+  type: FeedbackType
+  title: string
+  description: string
+  related_request_id: number | null
+  status: FeedbackStatus
+  created_at: string
+  updated_at: string
+}
+
+export type FeedbackInput = Omit<Feedback, 'id' | 'created_at' | 'updated_at'>

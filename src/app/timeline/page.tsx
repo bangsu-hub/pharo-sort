@@ -2,10 +2,10 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Request } from '@/types'
+import { Request, RequestInput } from '@/types'
 import { getCurrentUser, clearCurrentUser } from '@/lib/auth'
-import { getWeekBounds, getWeekDays, isOverdue, isThisWeek, toDateStr } from '@/lib/weekUtils'
-import TimelineCard from '@/components/TimelineCard'
+import GlobalTimeline from '@/components/GlobalTimeline'
+import RequestForm from '@/components/RequestForm'
 
 const MEMBER_EMOJI: Record<string, string> = {
   '구자영': '🐰', '윤난희': '🐮', '방수진': '🐷', '박종민': '🐑', '허주희': '🐴', '신지희': '🐯',
@@ -20,8 +20,9 @@ export default function TimelinePage() {
   const [requests, setRequests] = useState<Request[]>([])
   const [loading, setLoading] = useState(true)
   const [toasts, setToasts] = useState<Toast[]>([])
-  const [dragOverDay, setDragOverDay] = useState<string | null>(null)
   const [showDone, setShowDone] = useState(false)
+  const [editing, setEditing] = useState<Request | null>(null)
+  const [showForm, setShowForm] = useState(false)
 
   const addToast = useCallback((type: Toast['type'], message: string) => {
     const id = Date.now()
@@ -42,84 +43,25 @@ export default function TimelinePage() {
 
   const handleLogout = () => { clearCurrentUser(); router.replace('/login') }
 
-  /* ── 주간 데이터 계산 ── */
-  const weekDays = useMemo(() => getWeekDays(), [])
-  const todayStr = useMemo(() => toDateStr(new Date()), [])
-  const { mondayStr, fridayStr } = useMemo(() => getWeekBounds(), [])
-
   const activeRequests = useMemo(
     () => showDone ? requests : requests.filter(r => r.status !== '완료'),
     [requests, showDone]
   )
 
-  /* 요일별 컬럼 Map */
-  const columns = useMemo(() => {
-    const map = new Map<string, Request[]>()
-    weekDays.forEach(d => map.set(d.dateStr, []))
-    activeRequests.forEach(r => {
-      if (r.due_date && isThisWeek(r.due_date)) {
-        map.get(r.due_date)?.push(r)
-      }
+  const handleSave = async (data: RequestInput) => {
+    if (!editing) return
+    const res = await fetch(`/api/requests/${editing.id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', 'X-User-Name': encodeURIComponent(currentUser ?? '') },
+      body: JSON.stringify(data),
     })
-    // 각 컬럼: 기한 초과 먼저, 그 다음 id 역순
-    map.forEach((arr, key) => {
-      map.set(key, [...arr].sort((a, b) => {
-        const ao = isOverdue(a) ? 0 : 1
-        const bo = isOverdue(b) ? 0 : 1
-        return ao !== bo ? ao - bo : b.id - a.id
-      }))
-    })
-    return map
-  }, [activeRequests, weekDays])
-
-  /* 미배정 / 이번 주 외 */
-  const unscheduled = useMemo(
-    () => activeRequests.filter(r => !r.due_date || !isThisWeek(r.due_date)),
-    [activeRequests]
-  )
-
-  /* ── 드래그앤드롭 ── */
-  const handleDragStart = useCallback((e: React.DragEvent<HTMLDivElement>, id: number) => {
-    e.dataTransfer.setData('requestId', String(id))
-    e.dataTransfer.effectAllowed = 'move'
-  }, [])
-
-  const handleDragOver = useCallback((e: React.DragEvent, dateStr: string | null) => {
-    e.preventDefault()
-    e.dataTransfer.dropEffect = 'move'
-    setDragOverDay(dateStr)
-  }, [])
-
-  const handleDrop = useCallback(async (e: React.DragEvent, newDateStr: string | null) => {
-    e.preventDefault()
-    setDragOverDay(null)
-    const id = Number(e.dataTransfer.getData('requestId'))
-    if (!id) return
-
-    const prev = requests.find(r => r.id === id)
-    if (!prev) return
-    if (prev.due_date === newDateStr) return   // 변화 없음
-
-    // 낙관적 업데이트
-    setRequests(reqs => reqs.map(r => r.id === id ? { ...r, due_date: newDateStr } : r))
-
-    try {
-      const res = await fetch(`/api/requests/${id}`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-User-Name': encodeURIComponent(currentUser ?? ''),
-        },
-        body: JSON.stringify({ due_date: newDateStr }),
-      })
-      if (!res.ok) throw new Error('업데이트 실패')
-      addToast('info', newDateStr ? `기획 완료 예정일 → ${newDateStr}` : '기획 완료 예정일 삭제')
-    } catch {
-      // 롤백
-      setRequests(reqs => reqs.map(r => r.id === id ? { ...r, due_date: prev.due_date } : r))
-      addToast('error', '날짜 변경에 실패했습니다.')
-    }
-  }, [requests, currentUser, addToast])
+    if (!res.ok) { addToast('error', '수정 실패'); return }
+    const updated: Request = await res.json()
+    setRequests(prev => prev.map(r => r.id === updated.id ? updated : r))
+    addToast('success', '업무가 수정되었습니다.')
+    setEditing(null)
+    setShowForm(false)
+  }
 
   if (!authChecked || loading) {
     return (
@@ -168,7 +110,7 @@ export default function TimelinePage() {
               👥 담당자 대시보드
             </a>
             <span className="text-sm font-semibold text-white bg-indigo-600 px-4 py-1.5 rounded-lg shadow-sm">
-              📅 주간 타임라인
+              📅 캘린더
             </span>
           </nav>
         </div>
@@ -208,22 +150,16 @@ export default function TimelinePage() {
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
               d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
           </svg>
-          <span className="text-xs font-bold mt-0.5">타임라인</span>
+          <span className="text-xs font-bold mt-0.5">캘린더</span>
         </span>
       </nav>
 
-      <main className="flex-1 flex flex-col gap-4 p-3 md:p-5 pb-20 md:pb-6 overflow-hidden">
+      <main className="flex-1 flex flex-col gap-4 p-3 md:p-5 pb-20 md:pb-6">
 
-        {/* 주간 헤더 + 옵션 */}
         <div className="flex flex-wrap items-center gap-3">
           <div>
-            <h2 className="text-sm font-bold text-gray-800">
-              {mondayStr.slice(0, 7).replace('-', '년 ')}월 &nbsp;
-              <span className="text-indigo-600">{mondayStr.slice(8)}일(월)</span>
-              {' ~ '}
-              <span className="text-indigo-600">{fridayStr.slice(8)}일(금)</span>
-            </h2>
-            <p className="text-xs text-gray-400 mt-0.5">기획 완료 예정일 기준으로 배치됩니다. 카드를 드래그해서 날짜를 변경하세요.</p>
+            <h2 className="text-sm font-bold text-gray-800">전체 담당자 통합 캘린더</h2>
+            <p className="text-xs text-gray-400 mt-0.5">기획시작일자~기획완료예정일 구간을 담당자별로 모아봅니다. 막대 클릭 시 수정할 수 있습니다.</p>
           </div>
           <button
             onClick={() => setShowDone(v => !v)}
@@ -237,99 +173,21 @@ export default function TimelinePage() {
           </button>
         </div>
 
-        {/* ── 5컬럼 타임라인 ── */}
-        <div className="grid grid-cols-5 gap-2 md:gap-3 flex-1 min-h-0">
-          {weekDays.map(day => {
-            const isToday = day.dateStr === todayStr
-            const isOver  = dragOverDay === day.dateStr
-            const cards   = columns.get(day.dateStr) ?? []
-            const overdueCount = cards.filter(isOverdue).length
-
-            return (
-              <div
-                key={day.dateStr}
-                onDragOver={e => handleDragOver(e, day.dateStr)}
-                onDragLeave={() => setDragOverDay(null)}
-                onDrop={e => handleDrop(e, day.dateStr)}
-                className={`
-                  rounded-xl flex flex-col gap-2 p-2 md:p-3
-                  overflow-y-auto transition-all duration-150
-                  ${isToday ? 'bg-indigo-50 ring-2 ring-indigo-300' : 'bg-gray-100'}
-                  ${isOver  ? 'ring-2 ring-blue-400 bg-blue-50 scale-[1.01]' : ''}
-                `}
-                style={{ minHeight: '420px' }}
-              >
-                {/* 컬럼 헤더 */}
-                <div className={`flex items-center gap-1 pb-1 border-b ${isToday ? 'border-indigo-200' : 'border-gray-200'}`}>
-                  <div className="flex-1 min-w-0">
-                    <p className={`text-xs font-bold ${isToday ? 'text-indigo-700' : 'text-gray-600'}`}>
-                      {day.label}
-                    </p>
-                    {isToday && (
-                      <span className="text-xs bg-indigo-600 text-white px-1.5 py-0.5 rounded-full font-semibold">
-                        오늘
-                      </span>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-1 shrink-0">
-                    {overdueCount > 0 && (
-                      <span className="text-xs bg-red-500 text-white font-bold w-4 h-4 rounded-full flex items-center justify-center">
-                        {overdueCount}
-                      </span>
-                    )}
-                    <span className="text-xs text-gray-400">{cards.length}</span>
-                  </div>
-                </div>
-
-                {/* 카드 목록 */}
-                {cards.map(r => (
-                  <TimelineCard key={r.id} request={r} onDragStart={handleDragStart} />
-                ))}
-
-                {/* 드롭 힌트 */}
-                {isOver && (
-                  <div className="border-2 border-dashed border-blue-300 rounded-lg h-16 flex items-center justify-center">
-                    <span className="text-xs text-blue-400">여기에 놓기</span>
-                  </div>
-                )}
-              </div>
-            )
-          })}
-        </div>
-
-        {/* ── 미배정 / 이번 주 외 섹션 ── */}
-        <div className="bg-white border border-gray-200 rounded-xl p-3 md:p-4">
-          <h3 className="text-sm font-semibold text-gray-500 mb-3 flex items-center gap-2">
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
-            </svg>
-            미배정 / 이번 주 외
-            <span className="text-xs bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded-full font-medium">
-              {unscheduled.length}건
-            </span>
-          </h3>
-          {unscheduled.length === 0 ? (
-            <p className="text-xs text-gray-400 text-center py-4">모든 건에 이번 주 기획 완료 예정일이 설정되어 있습니다 🎉</p>
-          ) : (
-            <div
-              className={`flex flex-wrap gap-2 min-h-[60px] p-2 rounded-lg border-2 border-dashed transition-colors ${
-                dragOverDay === '__unscheduled' ? 'border-blue-400 bg-blue-50' : 'border-gray-200'
-              }`}
-              onDragOver={e => handleDragOver(e, '__unscheduled')}
-              onDragLeave={() => setDragOverDay(null)}
-              onDrop={e => handleDrop(e, null)}
-            >
-              {unscheduled.map(r => (
-                <div key={r.id} className="w-48">
-                  <TimelineCard request={r} onDragStart={handleDragStart} />
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
+        <GlobalTimeline
+          requests={activeRequests}
+          onSelectIssue={r => { setEditing(r); setShowForm(true) }}
+        />
 
       </main>
+
+      {showForm && (
+        <RequestForm
+          initial={editing}
+          currentUser={currentUser}
+          onSave={handleSave}
+          onClose={() => { setShowForm(false); setEditing(null) }}
+        />
+      )}
     </div>
   )
 }

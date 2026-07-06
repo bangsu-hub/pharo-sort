@@ -8,9 +8,10 @@ import { isOverdue } from '@/lib/weekUtils'
 import { syncJiraIssues } from '@/lib/jiraSync'
 import { createJiraIssueForRequest } from '@/lib/createJiraIssueForRequest'
 import { isAuthorized } from '@/lib/mcpAuth'
-import { Request as PSRequest, Status } from '@/types'
+import { Request as PSRequest, Status, FeedbackStatus } from '@/types'
 
 const STATUSES: Status[] = ['대기', '검토중', '기획중', '완료', '보류']
+const FEEDBACK_STATUSES: FeedbackStatus[] = ['접수', '확인중', '반영완료', '반려']
 
 function text(data: unknown) {
   return { content: [{ type: 'text' as const, text: JSON.stringify(data, null, 2) }] }
@@ -200,6 +201,26 @@ const handler = createMcpHandler(
       }
     )
 
+    server.registerTool(
+      'ps_list_feedback',
+      {
+        title: 'Pharo-Sort 자체 피드백 조회',
+        description: '기획팀원이 Pharo-Sort 사용 중 남긴 버그/개선요청/신규기능 피드백을 조회합니다.',
+        inputSchema: {
+          status: z.enum(FEEDBACK_STATUSES as [FeedbackStatus, ...FeedbackStatus[]]).optional().describe('처리 상태로 필터 (기본: 전체)'),
+          limit:  z.number().int().min(1).max(200).optional().describe('최대 반환 건수 (기본 50)'),
+        },
+      },
+      async ({ status, limit }) => {
+        let query = supabase.from('feedback').select('*').order('id', { ascending: false })
+        if (status) query = query.eq('status', status)
+
+        const { data, error } = await query.limit(limit ?? 50)
+        if (error) return errorText(error.message)
+        return text(data ?? [])
+      }
+    )
+
     // ───────────────────────── 쓰기 ─────────────────────────
 
     server.registerTool(
@@ -308,6 +329,27 @@ const handler = createMcpHandler(
     )
 
     server.registerTool(
+      'ps_set_start_date',
+      {
+        title: '기획시작일자 변경',
+        description: '업무의 기획시작일자를 설정하거나 삭제합니다.',
+        inputSchema: {
+          user_name:  z.string().describe('처리자 이름 (변경 이력에 기록됨)'),
+          id:         z.number().int().describe('업무 ID'),
+          start_date: z.string().nullable().describe('기획시작일자 (YYYY-MM-DD), null이면 삭제'),
+        },
+      },
+      async ({ user_name, id, start_date }) => {
+        try {
+          const updated = await patchRequest(id, { start_date } as Partial<PSRequest>, user_name)
+          return updated ? text(updated) : errorText(`업무 #${id}를 찾을 수 없습니다.`)
+        } catch (e) {
+          return errorText(e instanceof Error ? e.message : String(e))
+        }
+      }
+    )
+
+    server.registerTool(
       'ps_set_deploy_date',
       {
         title: '배포예정일 변경',
@@ -361,6 +403,24 @@ const handler = createMcpHandler(
         } catch (e) {
           return errorText(e instanceof Error ? e.message : String(e))
         }
+      }
+    )
+
+    server.registerTool(
+      'ps_update_feedback_status',
+      {
+        title: '피드백 처리 상태 변경',
+        description: '접수된 Pharo-Sort 자체 피드백의 처리 상태를 변경합니다 (예: 반영 완료 후 반영완료로 표시).',
+        inputSchema: {
+          id:     z.number().int().describe('피드백 ID'),
+          status: z.enum(FEEDBACK_STATUSES as [FeedbackStatus, ...FeedbackStatus[]]),
+        },
+      },
+      async ({ id, status }) => {
+        const { data, error } = await supabase.from('feedback').update({ status }).eq('id', id).select().single()
+        if (error) return errorText(error.message)
+        if (!data) return errorText(`피드백 #${id}를 찾을 수 없습니다.`)
+        return text(data)
       }
     )
   },

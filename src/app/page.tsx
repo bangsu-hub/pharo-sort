@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Request, RequestInput, Status, FilterState, WorkloadItem } from '@/types'
+import { Request, RequestInput, Status, FilterState, WorkloadItem, FeedbackInput } from '@/types'
 import { TEAM_MEMBERS } from '@/lib/constants'
 import { getCurrentUser, clearCurrentUser } from '@/lib/auth'
 import { isOverdue, isThisWeek, getWeekBounds } from '@/lib/weekUtils'
@@ -12,6 +12,7 @@ import RequestForm from '@/components/RequestForm'
 import WorkloadPanel from '@/components/WorkloadPanel'
 import ConfirmDialog from '@/components/ConfirmDialog'
 import GachaModal from '@/components/GachaModal'
+import FeedbackForm from '@/components/FeedbackForm'
 
 const MEMBER_EMOJI: Record<string, string> = {
   '구자영': '🐰', '윤난희': '🐮', '방수진': '🐷', '박종민': '🐑', '허주희': '🐴', '신지희': '🐯',
@@ -49,6 +50,7 @@ export default function HomePage() {
   const [showForm, setShowForm]     = useState(false)
   const [syncing, setSyncing]       = useState(false)
   const [showGacha, setShowGacha]   = useState(false)
+  const [showFeedback, setShowFeedback] = useState(false)
   const [toasts, setToasts]         = useState<Toast[]>([])
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set())
   const [confirm, setConfirm]       = useState<ConfirmState | null>(null)
@@ -281,6 +283,18 @@ export default function HomePage() {
     addToast('success', `${data.jira_key} 이슈가 생성되었습니다.`)
   }
 
+  /* ── 서비스 자체 피드백 등록 ── */
+  const handleSaveFeedback = async (data: FeedbackInput) => {
+    const res = await fetch('/api/feedback', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    })
+    const result = await res.json()
+    if (!res.ok) throw new Error(result.error ?? '등록 실패')
+    addToast('success', '피드백이 접수되었습니다. 확인 후 반영할게요!')
+  }
+
   /* ── Jira 동기화 ── */
   const handleJiraSync = async () => {
     setSyncing(true)
@@ -341,7 +355,7 @@ export default function HomePage() {
               👥 담당자 대시보드
             </a>
             <a href="/timeline" className="text-sm font-medium text-gray-500 hover:text-gray-700 px-4 py-1.5 rounded-lg transition-colors">
-              📅 주간 타임라인
+              📅 캘린더
             </a>
           </nav>
         </div>
@@ -465,7 +479,7 @@ export default function HomePage() {
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
               d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
           </svg>
-          <span className="text-xs mt-0.5">타임라인</span>
+          <span className="text-xs mt-0.5">캘린더</span>
         </a>
       </nav>
 
@@ -537,6 +551,7 @@ export default function HomePage() {
             workload={workload}
             selectedAssignee={filters.assignee}
             onSelect={name => setFilters(f => ({ ...f, assignee: name }))}
+            onOpenFeedback={() => setShowFeedback(true)}
           />
         </div>
       </main>
@@ -586,6 +601,14 @@ export default function HomePage() {
             addToast('success', `🎊 ${assignee}님이 담당자로 배정되었습니다!`)
           }}
           onClose={() => setShowGacha(false)}
+        />
+      )}
+
+      {showFeedback && (
+        <FeedbackForm
+          currentUser={currentUser}
+          onSave={handleSaveFeedback}
+          onClose={() => setShowFeedback(false)}
         />
       )}
 

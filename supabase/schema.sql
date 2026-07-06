@@ -80,6 +80,35 @@ CREATE INDEX IF NOT EXISTS idx_requests_due_date  ON requests(due_date);
 CREATE INDEX IF NOT EXISTS idx_requests_jira_key  ON requests(jira_key);
 
 -- ============================================================
+-- 서비스(Pharo-Sort) 자체 피드백/개선요청
+-- (기획팀원이 Pharo-Sort 사용 중 발견한 불편한 점을 남기면, AI가 MCP로 가져와 바로 수정)
+-- ============================================================
+CREATE TABLE IF NOT EXISTS feedback (
+  id                  SERIAL PRIMARY KEY,
+  user_name           VARCHAR(50)   NOT NULL,
+  page                VARCHAR(50)   NOT NULL,
+  type                VARCHAR(20)   NOT NULL DEFAULT '버그'
+                                    CHECK (type IN ('버그', '개선요청', '신규기능')),
+  title               VARCHAR(300)  NOT NULL,
+  description         TEXT          DEFAULT '',
+  related_request_id  INT           DEFAULT NULL,
+  status              VARCHAR(20)   NOT NULL DEFAULT '접수'
+                                    CHECK (status IN ('접수', '확인중', '반영완료', '반려')),
+  created_at          TIMESTAMPTZ   NOT NULL DEFAULT NOW(),
+  updated_at          TIMESTAMPTZ   NOT NULL DEFAULT NOW()
+);
+
+DROP TRIGGER IF EXISTS set_updated_at ON feedback;
+CREATE TRIGGER set_updated_at
+  BEFORE UPDATE ON feedback
+  FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+ALTER TABLE feedback ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "allow_all" ON feedback FOR ALL USING (true) WITH CHECK (true);
+
+CREATE INDEX IF NOT EXISTS idx_feedback_status ON feedback(status);
+
+-- ============================================================
 -- 팀원별 개인 Jira API 토큰
 -- (수동 등록 요청 → Jira 이슈 생성 시, 실제 실행한 사람 계정으로 등록되도록 함)
 -- ============================================================

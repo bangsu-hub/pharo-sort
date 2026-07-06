@@ -15,14 +15,23 @@ interface Props {
   workload: WorkloadItem[]
   selectedAssignee: string
   onSelect: (name: string) => void
+  onOpenFeedback: () => void
 }
 
-export default function WorkloadPanel({ workload, selectedAssignee, onSelect }: Props) {
+export default function WorkloadPanel({ workload, selectedAssignee, onSelect, onOpenFeedback }: Props) {
   if (workload.length === 0) {
     return (
       <aside className="w-full md:w-60 md:shrink-0 bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
         <h2 className="text-sm font-semibold text-gray-700 mb-3">업무 부하 현황</h2>
         <p className="text-xs text-gray-400 text-center py-8">담당자 없음</p>
+        <button onClick={onOpenFeedback}
+          className="w-full text-xs font-medium text-gray-500 border border-gray-200 rounded-lg py-2 hover:bg-gray-50 hover:text-indigo-600 hover:border-indigo-200 transition-colors">
+          💬 불편한 점 남기기
+        </button>
+        <a href="/feedback"
+          className="block w-full text-center text-xs text-gray-400 hover:text-indigo-500 transition-colors mt-1.5">
+          목록보기 &gt;
+        </a>
       </aside>
     )
   }
@@ -105,6 +114,15 @@ export default function WorkloadPanel({ workload, selectedAssignee, onSelect }: 
           <span className="w-2 h-2 rounded-full bg-red-500 inline-block" />과부하
         </div>
       </div>
+
+      <button onClick={onOpenFeedback}
+        className="w-full mt-3 text-xs font-medium text-gray-500 border border-gray-200 rounded-lg py-2 hover:bg-gray-50 hover:text-indigo-600 hover:border-indigo-200 transition-colors">
+        💬 불편한 점 남기기
+      </button>
+      <a href="/feedback"
+        className="block w-full text-center text-xs text-gray-400 hover:text-indigo-500 transition-colors mt-1.5">
+        목록보기 &gt;
+      </a>
     </aside>
   )
 }

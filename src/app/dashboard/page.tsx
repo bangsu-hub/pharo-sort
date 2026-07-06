@@ -134,7 +134,7 @@ export default function DashboardPage() {
               👥 담당자 대시보드
             </span>
             <a href="/timeline" className="text-sm font-medium text-gray-500 hover:text-gray-700 px-4 py-1.5 rounded-lg transition-colors">
-              📅 주간 타임라인
+              📅 캘린더
             </a>
           </nav>
         </div>
@@ -181,7 +181,7 @@ export default function DashboardPage() {
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
               d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
           </svg>
-          <span className="text-xs mt-0.5">타임라인</span>
+          <span className="text-xs mt-0.5">캘린더</span>
         </a>
       </nav>
 
