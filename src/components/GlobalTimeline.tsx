@@ -20,6 +20,28 @@ const STATUS_BAR_COLOR: Record<Status, string> = {
 const STATUSES: Status[] = ['대기', '검토중', '기획중', '완료', '보류']
 const DAY_KR = ['일', '월', '화', '수', '목', '금', '토']
 
+/**
+ * 대한민국 법정공휴일 (설날/추석 등 음력 연휴는 매년 날짜가 바뀌므로 연도별로 직접 등록).
+ * 2025~2027년만 등록되어 있음 — 이후 연도는 매년 갱신 필요.
+ */
+const KR_HOLIDAYS = new Set([
+  // 2025
+  '2025-01-01', '2025-01-28', '2025-01-29', '2025-01-30', '2025-03-01', '2025-03-03',
+  '2025-05-05', '2025-05-06', '2025-06-06', '2025-08-15',
+  '2025-10-03', '2025-10-05', '2025-10-06', '2025-10-07', '2025-10-08', '2025-10-09',
+  '2025-12-25',
+  // 2026
+  '2026-01-01', '2026-02-16', '2026-02-17', '2026-02-18', '2026-03-01', '2026-03-02',
+  '2026-05-05', '2026-05-24', '2026-05-25', '2026-06-03', '2026-06-06', '2026-07-17',
+  '2026-08-15', '2026-08-17', '2026-09-24', '2026-09-25', '2026-09-26',
+  '2026-10-03', '2026-10-05', '2026-10-09', '2026-12-25',
+  // 2027
+  '2027-01-01', '2027-02-06', '2027-02-07', '2027-02-08', '2027-02-09', '2027-03-01',
+  '2027-05-05', '2027-05-13', '2027-06-06', '2027-06-07', '2027-07-17',
+  '2027-08-15', '2027-08-16', '2027-09-14', '2027-09-15', '2027-09-16',
+  '2027-10-03', '2027-10-04', '2027-10-09', '2027-10-11', '2027-12-25', '2027-12-27',
+])
+
 function toDateStr(d: Date): string {
   const y = d.getFullYear()
   const m = String(d.getMonth() + 1).padStart(2, '0')
@@ -198,9 +220,16 @@ export default function GlobalTimeline({ requests, onSelectIssue }: Props) {
               {days.map(d => {
                 const isToday = toDateStr(d) === todayStr
                 const dow = d.getDay()
+                const isOff = dow === 0 || dow === 6 || KR_HOLIDAYS.has(toDateStr(d))
                 return (
                   <div key={toDateStr(d)}
-                    className={`flex-1 text-center text-xs pb-1.5 border-b-2 ${isToday ? 'text-indigo-600 font-bold border-indigo-400' : 'text-gray-400 border-gray-100'}`}>
+                    className={`flex-1 text-center text-xs pb-1.5 border-b-2 rounded-t ${
+                      isToday
+                        ? 'text-indigo-600 font-bold border-indigo-400'
+                        : isOff
+                          ? 'text-red-400 border-red-100 bg-red-50/70'
+                          : 'text-gray-400 border-gray-100'
+                    }`}>
                     {d.getMonth() + 1}/{d.getDate()}
                     <span className="block text-[10px]">{DAY_KR[dow]}</span>
                   </div>
@@ -259,6 +288,9 @@ export default function GlobalTimeline({ requests, onSelectIssue }: Props) {
         ))}
         <span className="flex items-center gap-1 ml-2">
           <span className="w-2.5 h-2.5 rounded-full inline-block border border-dashed border-gray-400" />기획시작일자 미입력
+        </span>
+        <span className="flex items-center gap-1">
+          <span className="w-2.5 h-2.5 rounded-full inline-block bg-red-50 border border-red-200" />주말/공휴일
         </span>
       </div>
 
