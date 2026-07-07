@@ -125,6 +125,19 @@ export default function RequestForm({ initial, currentUser, onSave, onClose }: P
     })
   }
 
+  /** 잘못 추가한 이력 항목을 통째로 삭제. 마지막(최신) 항목을 지우면 그 앞 항목이 새 현재 일정이 되어 상단 필드에도 반영된다 */
+  const removeHistoryEntry = (idx: number) => {
+    setForm(f => {
+      const wasLast = idx === f.schedule_history.length - 1
+      const schedule_history = f.schedule_history.filter((_, i) => i !== idx)
+      if (wasLast && schedule_history.length > 0) {
+        const newLast = schedule_history[schedule_history.length - 1]
+        return { ...f, schedule_history, start_date: newLast.start_date, due_date: newLast.due_date }
+      }
+      return { ...f, schedule_history }
+    })
+  }
+
   const handlePasteSummary = async (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
     const item = Array.from(e.clipboardData.items).find(i => i.type.startsWith('image/'))
     if (!item) return // 일반 텍스트 붙여넣기는 그대로 진행
@@ -439,6 +452,13 @@ export default function RequestForm({ initial, currentUser, onSave, onClose }: P
                         className="flex-1 min-w-[120px] text-xs border border-gray-200 rounded px-1.5 py-1 focus:outline-none focus:ring-2 focus:ring-indigo-200"
                       />
                     )}
+                    <button
+                      type="button"
+                      onClick={() => removeHistoryEntry(i)}
+                      className="text-xs text-gray-400 hover:text-red-500 shrink-0 ml-auto"
+                    >
+                      삭제
+                    </button>
                   </div>
                 ))}
               </div>
