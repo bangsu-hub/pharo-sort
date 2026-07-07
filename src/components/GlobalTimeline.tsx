@@ -227,7 +227,7 @@ export default function GlobalTimeline({ requests, onSelectIssue }: Props) {
                       isToday
                         ? 'text-indigo-600 font-bold border-indigo-400'
                         : isOff
-                          ? 'text-red-400 border-red-100 bg-red-50/70'
+                          ? 'text-red-400 border-red-100'
                           : 'text-gray-400 border-gray-100'
                     }`}>
                     {d.getMonth() + 1}/{d.getDate()}
@@ -289,8 +289,8 @@ export default function GlobalTimeline({ requests, onSelectIssue }: Props) {
         <span className="flex items-center gap-1 ml-2">
           <span className="w-2.5 h-2.5 rounded-full inline-block border border-dashed border-gray-400" />기획시작일자 미입력
         </span>
-        <span className="flex items-center gap-1">
-          <span className="w-2.5 h-2.5 rounded-full inline-block bg-red-50 border border-red-200" />주말/공휴일
+        <span className="flex items-center gap-1 text-red-400">
+          <span className="w-2.5 h-2.5 rounded-full inline-block border border-red-300" />주말/공휴일
         </span>
       </div>
 
