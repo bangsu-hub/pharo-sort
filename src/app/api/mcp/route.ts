@@ -350,6 +350,38 @@ const handler = createMcpHandler(
     )
 
     server.registerTool(
+      'ps_add_schedule_change',
+      {
+        title: '일정 변경 이력 추가',
+        description: '업무의 기획시작일자/완료예정일 변경 시 사유와 함께 차수별 이력을 남기고 현재 일정을 최신 값으로 갱신합니다. 최초 호출 시 기존 일정이 자동으로 [최초] 항목으로 기록됩니다.',
+        inputSchema: {
+          user_name:  z.string().describe('처리자 이름 (변경 이력에 기록됨)'),
+          id:         z.number().int().describe('업무 ID'),
+          start_date: z.string().describe('변경된 기획시작일자 (YYYY-MM-DD)'),
+          due_date:   z.string().describe('변경된 기획완료예정일 (YYYY-MM-DD)'),
+          reason:     z.string().describe('일정 변경 사유'),
+        },
+      },
+      async ({ user_name, id, start_date, due_date, reason }) => {
+        try {
+          const before = await fetchRequestById(id)
+          if (!before) return errorText(`업무 #${id}를 찾을 수 없습니다.`)
+
+          const history = Array.isArray(before.schedule_history) ? [...before.schedule_history] : []
+          if (history.length === 0) {
+            history.push({ start_date: before.start_date, due_date: before.due_date, reason: null })
+          }
+          history.push({ start_date, due_date, reason })
+
+          const updated = await patchRequest(id, { schedule_history: history, start_date, due_date } as Partial<PSRequest>, user_name)
+          return updated ? text(updated) : errorText(`업무 #${id}를 찾을 수 없습니다.`)
+        } catch (e) {
+          return errorText(e instanceof Error ? e.message : String(e))
+        }
+      }
+    )
+
+    server.registerTool(
       'ps_set_deploy_date',
       {
         title: '배포예정일 변경',

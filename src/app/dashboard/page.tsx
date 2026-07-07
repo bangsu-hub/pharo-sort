@@ -2,12 +2,14 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Request, Status } from '@/types'
+import { Request, RequestInput, Status } from '@/types'
 import { TEAM_MEMBERS } from '@/lib/constants'
 import { getCurrentUser, clearCurrentUser } from '@/lib/auth'
+import { isOverdue, isThisWeek } from '@/lib/weekUtils'
 import JiraStatusBadge from '@/components/JiraStatusBadge'
 import WeeklySummary from '@/components/WeeklySummary'
 import MemberCalendar from '@/components/MemberCalendar'
+import RequestForm from '@/components/RequestForm'
 
 const STATUS_TEXT: Record<Status, string> = {
   '대기':   'text-gray-500 bg-gray-100',
@@ -43,6 +45,99 @@ type MemberStats = {
   issues: Request[]
 }
 
+function statusBreakdown(issues: Request[]): Record<Status, number> {
+  return Object.fromEntries(STATUSES.map(s => [s, issues.filter(r => r.status === s).length])) as Record<Status, number>
+}
+
+/** 이슈 한 건 표시 행. showAssignee는 여러 담당자가 섞인 목록(전체 진행중 등)에서만 켠다 */
+function IssueRow({ r, showAssignee, onSelect }: { r: Request; showAssignee?: boolean; onSelect?: (r: Request) => void }) {
+  const overdue = isOverdue(r)
+  const isStg = r.jira_status === 'STG 테스트요청'
+  const assigneeStyle = r.assignee ? MEMBER_STYLE[r.assignee] : null
+  return (
+    <div className={`px-3 md:px-5 py-3 flex items-start md:items-center gap-2 md:gap-3 ${isStg ? 'bg-amber-50 border-l-4 border-amber-400' : overdue ? 'bg-red-50' : ''}`}>
+      {isStg && <span className="text-base shrink-0 mt-0.5 md:mt-0" title="STG 테스트 검수 필요">🧪</span>}
+      <span className={`text-xs px-2 py-0.5 rounded-full font-medium shrink-0 mt-0.5 md:mt-0 ${STATUS_TEXT[r.status]}`}>{r.status}</span>
+      {showAssignee && (
+        assigneeStyle
+          ? <span className={`text-xs font-semibold shrink-0 mt-0.5 md:mt-0 ${assigneeStyle.text}`}>{assigneeStyle.emoji} {r.assignee}</span>
+          : <span className="text-xs font-semibold text-orange-500 shrink-0 mt-0.5 md:mt-0">미배정</span>
+      )}
+      <div className="flex-1 min-w-0 cursor-pointer" onClick={() => onSelect?.(r)}>
+        <div className="flex flex-wrap items-center gap-1.5">
+          <p className="text-sm font-medium text-gray-800 truncate hover:text-indigo-600 hover:underline">{r.title}</p>
+          {isStg && <span className="text-xs font-bold text-amber-600 bg-amber-100 px-1.5 py-0.5 rounded shrink-0">STG 검수</span>}
+        </div>
+        {r.summary && <p className="text-xs text-gray-400 truncate mt-0.5">{r.summary}</p>}
+        {/* 모바일: 메타정보 하단에 */}
+        <div className="flex flex-wrap items-center gap-1.5 mt-1 md:hidden">
+          <JiraStatusBadge status={r.jira_status ?? null} />
+          <span className="text-xs bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded">{r.request_team}</span>
+          {r.jira_key && (
+            <a href={r.jira_link ?? '#'} target="_blank" rel="noopener noreferrer"
+              className="text-xs text-blue-500 hover:underline" onClick={e => e.stopPropagation()}>
+              {r.jira_key}
+            </a>
+          )}
+          {r.due_date && (
+            <span className={`text-xs ${overdue ? 'text-red-600 font-semibold' : 'text-gray-400'}`}>
+              {r.due_date.slice(0, 10)}
+            </span>
+          )}
+        </div>
+      </div>
+      {/* 데스크톱: 오른쪽 메타정보 */}
+      <div className="hidden md:flex items-center gap-2">
+        <JiraStatusBadge status={r.jira_status ?? null} />
+        <span className="text-xs bg-gray-100 text-gray-500 px-2 py-0.5 rounded shrink-0">{r.request_team}</span>
+        {r.jira_key && (
+          <a href={r.jira_link ?? '#'} target="_blank" rel="noopener noreferrer"
+            className="text-xs text-blue-500 hover:underline shrink-0" onClick={e => e.stopPropagation()}>
+            {r.jira_key}
+          </a>
+        )}
+        {r.due_date && (
+          <span className={`text-xs shrink-0 ${overdue ? 'text-red-600 font-semibold' : 'text-gray-400'}`}>
+            {r.due_date.slice(0, 10)}
+          </span>
+        )}
+      </div>
+    </div>
+  )
+}
+
+/** 주간 현황 요약 카드(전체 진행중/마감 목표/기한 초과/미배정) 클릭 시 담당자 카드 밑에 뜨는 상세 패널 */
+function SummaryDetailPanel({ title, icon, issues, showAssignee, onSelectIssue }: { title: string; icon: string; issues: Request[]; showAssignee?: boolean; onSelectIssue?: (r: Request) => void }) {
+  const byStatus = statusBreakdown(issues)
+  return (
+    <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+      <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between flex-wrap gap-2">
+        <div className="flex items-center gap-3">
+          <span className="text-3xl">{icon}</span>
+          <div>
+            <h3 className="text-base font-bold text-gray-800">{title}</h3>
+            <p className="text-xs text-gray-400">{issues.length}건</p>
+          </div>
+        </div>
+        <div className="flex gap-2 flex-wrap justify-end">
+          {STATUSES.map(s => byStatus[s] > 0 && (
+            <span key={s} className={`text-xs px-2.5 py-1 rounded-full font-medium ${STATUS_TEXT[s]}`}>
+              {s} {byStatus[s]}
+            </span>
+          ))}
+        </div>
+      </div>
+      {issues.length === 0 ? (
+        <p className="text-sm text-gray-400 text-center py-10">해당하는 이슈가 없습니다.</p>
+      ) : (
+        <div className="divide-y divide-gray-100">
+          {issues.map(r => <IssueRow key={r.id} r={r} showAssignee={showAssignee} onSelect={onSelectIssue} />)}
+        </div>
+      )}
+    </div>
+  )
+}
+
 export default function DashboardPage() {
   const router = useRouter()
   const [currentUser, setCurrentUser] = useState<string | null>(null)
@@ -52,6 +147,8 @@ export default function DashboardPage() {
   const [loading, setLoading]         = useState(true)
   const [expanded, setExpanded]       = useState<string | null>(null)
   const [statusFilter, setStatusFilter] = useState<Status | ''>('')
+  const [editing, setEditing]         = useState<Request | null>(null)
+  const [showForm, setShowForm]       = useState(false)
 
   useEffect(() => {
     const user = getCurrentUser()
@@ -62,6 +159,20 @@ export default function DashboardPage() {
       .then(r => r.json())
       .then(data => { setRequests(data); setLoading(false) })
   }, [router])
+
+  const handleSave = async (data: RequestInput) => {
+    if (!editing) return
+    const res = await fetch(`/api/requests/${editing.id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', 'X-User-Name': encodeURIComponent(currentUser ?? '') },
+      body: JSON.stringify(data),
+    })
+    if (!res.ok) return
+    const updated: Request = await res.json()
+    setRequests(prev => prev.map(r => r.id === updated.id ? updated : r))
+    setEditing(null)
+    setShowForm(false)
+  }
 
   const memberStats = useMemo<MemberStats[]>(() => {
     return TEAM_MEMBERS.map(name => {
@@ -74,6 +185,11 @@ export default function DashboardPage() {
   }, [requests])
 
   const unassigned = useMemo(() => requests.filter(r => !r.assignee?.trim()), [requests])
+
+  // 주간 현황 요약 카드(전체 진행중/이번 주 마감 목표/기한 초과) 클릭 시 보여줄 목록
+  const weeklyActiveIssues  = useMemo(() => requests.filter(r => r.status !== '완료' && r.status !== '대기'), [requests])
+  const weeklyTargetIssues  = useMemo(() => requests.filter(r => r.due_date && isThisWeek(r.due_date)), [requests])
+  const weeklyOverdueIssues = useMemo(() => requests.filter(isOverdue), [requests])
 
   const totalStats = useMemo(() => ({
     total:   requests.length,
@@ -188,7 +304,11 @@ export default function DashboardPage() {
       <main className="flex-1 p-3 md:p-6 space-y-4 md:space-y-6 pb-20 md:pb-6">
 
         {/* ── 주간 현황 요약 ── */}
-        <WeeklySummary requests={requests} />
+        <WeeklySummary
+          requests={requests}
+          selected={expanded}
+          onSelect={key => setExpanded(e => e === key ? null : key)}
+        />
 
         {/* ── STG 테스트 필요 알림 배너 ── */}
         {stgRequired.length > 0 && (
@@ -319,7 +439,25 @@ export default function DashboardPage() {
           })}
         </div>
 
-        {/* ── 이슈 상세 패널 (카드 클릭 시 펼침) ── */}
+        {/* ── 주간 현황 요약 카드 클릭 시 상세 패널 ── */}
+        {expanded === '__weekly_active' && (
+          <SummaryDetailPanel title="전체 진행중" icon="📋" issues={filteredIssues(weeklyActiveIssues)} showAssignee
+            onSelectIssue={r => { setEditing(r); setShowForm(true) }} />
+        )}
+        {expanded === '__weekly_target' && (
+          <SummaryDetailPanel title="이번 주 마감 목표" icon="📅" issues={filteredIssues(weeklyTargetIssues)} showAssignee
+            onSelectIssue={r => { setEditing(r); setShowForm(true) }} />
+        )}
+        {expanded === '__weekly_overdue' && (
+          <SummaryDetailPanel title="기한 초과" icon="⚠️" issues={filteredIssues(weeklyOverdueIssues)} showAssignee
+            onSelectIssue={r => { setEditing(r); setShowForm(true) }} />
+        )}
+        {expanded === '__unassigned' && (
+          <SummaryDetailPanel title="미배정" icon="❓" issues={filteredIssues(unassigned)}
+            onSelectIssue={r => { setEditing(r); setShowForm(true) }} />
+        )}
+
+        {/* ── 이슈 상세 패널 (담당자 카드 클릭 시 펼침) ── */}
         {memberStats.map(m => {
           if (expanded !== m.name) return null
           const style  = MEMBER_STYLE[m.name] ?? { emoji: '🙂', bg: 'from-gray-50 to-gray-100', ring: 'ring-gray-300', text: 'text-gray-700' }
@@ -352,110 +490,22 @@ export default function DashboardPage() {
                 <p className="text-sm text-gray-400 text-center py-10">해당 상태의 이슈가 없습니다.</p>
               ) : (
                 <div className="divide-y divide-gray-100">
-                  {issues.map(r => {
-                    const isOverdue = r.due_date && r.status !== '완료'
-                      && new Date(r.due_date) < new Date(new Date().toDateString())
-                    const isStg = r.jira_status === 'STG 테스트요청'
-                    return (
-                      <div key={r.id} className={`px-3 md:px-5 py-3 flex items-start md:items-center gap-2 md:gap-3 ${isStg ? 'bg-amber-50 border-l-4 border-amber-400' : isOverdue ? 'bg-red-50' : ''}`}>
-                        {isStg && <span className="text-base shrink-0 mt-0.5 md:mt-0" title="STG 테스트 검수 필요">🧪</span>}
-                        <span className={`text-xs px-2 py-0.5 rounded-full font-medium shrink-0 mt-0.5 md:mt-0 ${STATUS_TEXT[r.status]}`}>{r.status}</span>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex flex-wrap items-center gap-1.5">
-                            <p className="text-sm font-medium text-gray-800 truncate">{r.title}</p>
-                            {isStg && <span className="text-xs font-bold text-amber-600 bg-amber-100 px-1.5 py-0.5 rounded shrink-0">STG 검수</span>}
-                          </div>
-                          {r.summary && <p className="text-xs text-gray-400 truncate mt-0.5">{r.summary}</p>}
-                          {/* 모바일: 메타정보 하단에 */}
-                          <div className="flex flex-wrap items-center gap-1.5 mt-1 md:hidden">
-                            <JiraStatusBadge status={r.jira_status ?? null} />
-                            <span className="text-xs bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded">{r.request_team}</span>
-                            {r.jira_key && (
-                              <a href={r.jira_link ?? '#'} target="_blank" rel="noopener noreferrer"
-                                className="text-xs text-blue-500 hover:underline" onClick={e => e.stopPropagation()}>
-                                {r.jira_key}
-                              </a>
-                            )}
-                            {r.due_date && (
-                              <span className={`text-xs ${isOverdue ? 'text-red-600 font-semibold' : 'text-gray-400'}`}>
-                                {r.due_date.slice(0, 10)}
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                        {/* 데스크톱: 오른쪽 메타정보 */}
-                        <div className="hidden md:flex items-center gap-2">
-                          <JiraStatusBadge status={r.jira_status ?? null} />
-                          <span className="text-xs bg-gray-100 text-gray-500 px-2 py-0.5 rounded shrink-0">{r.request_team}</span>
-                          {r.jira_key && (
-                            <a href={r.jira_link ?? '#'} target="_blank" rel="noopener noreferrer"
-                              className="text-xs text-blue-500 hover:underline shrink-0" onClick={e => e.stopPropagation()}>
-                              {r.jira_key}
-                            </a>
-                          )}
-                          {r.due_date && (
-                            <span className={`text-xs shrink-0 ${isOverdue ? 'text-red-600 font-semibold' : 'text-gray-400'}`}>
-                              {r.due_date.slice(0, 10)}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    )
-                  })}
+                  {issues.map(r => <IssueRow key={r.id} r={r} onSelect={r => { setEditing(r); setShowForm(true) }} />)}
                 </div>
               )}
             </div>
           )
         })}
-
-        {/* 미배정 이슈 */}
-        {unassigned.length > 0 && (
-          <div className="bg-white rounded-2xl border border-orange-200 shadow-sm overflow-hidden">
-            <div className="px-5 py-4 border-b border-orange-100 bg-orange-50 flex items-center justify-between cursor-pointer"
-              onClick={() => setExpanded(e => e === '__unassigned' ? null : '__unassigned')}>
-              <div className="flex items-center gap-3">
-                <span className="text-3xl">❓</span>
-                <div>
-                  <h3 className="text-sm font-bold text-orange-900">미배정</h3>
-                  <p className="text-xs text-orange-600">담당자가 배정되지 않은 이슈 {unassigned.length}건</p>
-                </div>
-              </div>
-              <svg className={`w-4 h-4 text-orange-400 transition-transform ${expanded === '__unassigned' ? 'rotate-180' : ''}`}
-                fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7"/>
-              </svg>
-            </div>
-            {expanded === '__unassigned' && (
-              <div className="divide-y divide-gray-100">
-                {filteredIssues(unassigned).map(r => (
-                  <div key={r.id} className="px-3 md:px-5 py-3 flex items-start md:items-center gap-2 md:gap-3">
-                    <span className={`text-xs px-2 py-0.5 rounded-full font-medium shrink-0 mt-0.5 md:mt-0 ${STATUS_TEXT[r.status]}`}>{r.status}</span>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm text-gray-700 truncate">{r.title}</p>
-                      <div className="flex flex-wrap items-center gap-1.5 mt-1 md:hidden">
-                        <JiraStatusBadge status={r.jira_status ?? null} />
-                        <span className="text-xs bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded">{r.request_team}</span>
-                        {r.jira_key && (
-                          <a href={r.jira_link ?? '#'} target="_blank" rel="noopener noreferrer"
-                            className="text-xs text-blue-500 hover:underline">{r.jira_key}</a>
-                        )}
-                      </div>
-                    </div>
-                    <div className="hidden md:flex items-center gap-2">
-                      <JiraStatusBadge status={r.jira_status ?? null} />
-                      <span className="text-xs bg-gray-100 text-gray-500 px-2 py-0.5 rounded shrink-0">{r.request_team}</span>
-                      {r.jira_key && (
-                        <a href={r.jira_link ?? '#'} target="_blank" rel="noopener noreferrer"
-                          className="text-xs text-blue-500 hover:underline shrink-0">{r.jira_key}</a>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
       </main>
+
+      {showForm && (
+        <RequestForm
+          initial={editing}
+          currentUser={currentUser}
+          onSave={handleSave}
+          onClose={() => { setShowForm(false); setEditing(null) }}
+        />
+      )}
     </div>
   )
 }

@@ -395,7 +395,16 @@ export default function HomePage() {
             ).map(({ label, count, color, active }) => (
               <button
                 key={label}
-                onClick={() => setFilters(f => ({ ...f, status: f.status === label ? '' : label }))}
+                onClick={() => setFilters(f => {
+                  const nextStatus = f.status === label ? '' : label
+                  return {
+                    ...f,
+                    status: nextStatus,
+                    // 완료/대기로 필터링하면서 동시에 완료/대기 제외가 켜져 있으면 결과가 0건이 되므로 자동 해제
+                    excludeDone:    nextStatus === '완료' ? false : f.excludeDone,
+                    excludeWaiting: nextStatus === '대기' ? false : f.excludeWaiting,
+                  }
+                })}
                 className={`px-2.5 py-1 rounded-full font-medium transition-all cursor-pointer ${color} ${filters.status === label ? active : ''}`}
               >
                 {label} {count}

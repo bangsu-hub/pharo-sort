@@ -4,9 +4,13 @@ import { useMemo } from 'react'
 import { Request } from '@/types'
 import { isOverdue, isThisWeek, getWeekBounds } from '@/lib/weekUtils'
 
-interface Props { requests: Request[] }
+interface Props {
+  requests: Request[]
+  selected?: string | null
+  onSelect?: (key: string) => void
+}
 
-export default function WeeklySummary({ requests }: Props) {
+export default function WeeklySummary({ requests, selected, onSelect }: Props) {
   const { mondayStr, fridayStr } = getWeekBounds()
 
   const stats = useMemo(() => {
@@ -21,6 +25,7 @@ export default function WeeklySummary({ requests }: Props) {
 
   const cards = [
     {
+      key:   '__weekly_active',
       label: '전체 진행중',
       value: stats.totalActive,
       sub:   '완료·대기 제외',
@@ -34,6 +39,7 @@ export default function WeeklySummary({ requests }: Props) {
       ),
     },
     {
+      key:   '__weekly_target',
       label: '이번 주 마감 목표',
       value: stats.weeklyTarget,
       sub:   weekLabel,
@@ -47,6 +53,7 @@ export default function WeeklySummary({ requests }: Props) {
       ),
     },
     {
+      key:   '__weekly_overdue',
       label: '기한 초과',
       value: stats.overdueCount,
       sub:   '미완료 + 기한 지남',
@@ -61,6 +68,7 @@ export default function WeeklySummary({ requests }: Props) {
       ),
     },
     {
+      key:   '__unassigned',
       label: '미배정 업무',
       value: stats.unassignedCount,
       sub:   '담당자 없음',
@@ -87,14 +95,21 @@ export default function WeeklySummary({ requests }: Props) {
       </div>
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         {cards.map(c => (
-          <div key={c.label} className={`${c.bg} rounded-xl p-3 flex flex-col gap-1`}>
+          <button
+            key={c.key}
+            type="button"
+            onClick={() => onSelect?.(c.key)}
+            className={`${c.bg} rounded-xl p-3 flex flex-col gap-1 text-left border-2 transition-all hover:brightness-95 ${
+              selected === c.key ? 'border-indigo-400 shadow-md' : 'border-transparent'
+            }`}
+          >
             <div className="flex items-center justify-between">
               {c.icon}
               <span className={`text-2xl font-black ${c.num} ${c.pulse ? 'animate-pulse' : ''}`}>{c.value}</span>
             </div>
             <p className="text-xs font-semibold text-gray-700 mt-1">{c.label}</p>
             <p className="text-xs text-gray-400">{c.sub}</p>
-          </div>
+          </button>
         ))}
       </div>
     </div>

@@ -21,6 +21,7 @@ CREATE TABLE IF NOT EXISTS requests (
   deploy_date   DATE          DEFAULT NULL,  -- 배포 예정일
   jira_link     TEXT          DEFAULT NULL,
   jira_key      VARCHAR(50)   UNIQUE DEFAULT NULL,  -- 지라 티켓 키 (중복 방지)
+  schedule_history JSONB      NOT NULL DEFAULT '[]'::jsonb,  -- 일정 변경 차수 이력 ([최초] + [변경 N]...)
   created_at    TIMESTAMPTZ   NOT NULL DEFAULT NOW(),
   updated_at    TIMESTAMPTZ   NOT NULL DEFAULT NOW()
 );
@@ -30,6 +31,7 @@ CREATE TABLE IF NOT EXISTS requests (
 -- ============================================================
 ALTER TABLE requests ADD COLUMN IF NOT EXISTS deploy_date DATE DEFAULT NULL;
 ALTER TABLE requests ADD COLUMN IF NOT EXISTS start_date DATE DEFAULT NULL;
+ALTER TABLE requests ADD COLUMN IF NOT EXISTS schedule_history JSONB NOT NULL DEFAULT '[]'::jsonb;
 
 -- 기존 status 체크 제약 제거 (제약 이름이 다를 수 있어 이름에 의존하지 않고 탐색 후 제거)
 -- 현재 제약은 '대기'조차 허용하지 않음 — 먼저 풀어야 아래 UPDATE가 통과됨

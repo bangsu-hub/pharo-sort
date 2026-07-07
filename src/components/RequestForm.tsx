@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { Request, RequestInput, Status, Priority } from '@/types'
+import { Request, RequestInput, ScheduleChange, Status, Priority } from '@/types'
 import { TEAM_MEMBERS, REQUEST_TEAMS } from '@/lib/constants'
 
 const STATUSES: Status[]     = ['대기', '검토중', '기획중', '완료', '보류']
@@ -29,6 +29,13 @@ const EMPTY: RequestInput = {
   jira_link: null,
   jira_key: null,
   jira_status: null,
+  schedule_history: [],
+}
+
+interface ScheduleChangeDraft {
+  start_date: string
+  due_date: string
+  reason: string
 }
 
 // ← 컴포넌트 밖으로 이동 (리렌더링마다 새 타입으로 인식되는 문제 방지)
@@ -66,6 +73,7 @@ export default function RequestForm({ initial, currentUser, onSave, onClose }: P
   const [form, setForm] = useState<RequestInput>(EMPTY)
   const [saving, setSaving] = useState(false)
   const [errors, setErrors] = useState<Record<string, string>>({})
+  const [draftChanges, setDraftChanges] = useState<ScheduleChangeDraft[]>([])
   const [uploading, setUploading] = useState(false)
   const [uploadError, setUploadError] = useState<string | null>(null)
   const [previewImage, setPreviewImage] = useState<string | null>(null)
@@ -75,15 +83,47 @@ export default function RequestForm({ initial, currentUser, onSave, onClose }: P
     if (initial) {
       const { id, created_at, updated_at, ...rest } = initial
       void id; void created_at; void updated_at
-      setForm(rest)
+      setForm({ ...rest, schedule_history: rest.schedule_history ?? [] })
     } else {
       setForm({ ...EMPTY, request_date: new Date().toISOString().slice(0, 10) })
     }
+    setDraftChanges([])
     setErrors({})
   }, [initial])
 
   const update = (key: keyof RequestInput, value: string | null) =>
     setForm(f => ({ ...f, [key]: value }))
+
+  const addScheduleChange = () => {
+    setDraftChanges(list => [...list, {
+      start_date: form.start_date ?? '',
+      due_date: form.due_date ?? '',
+      reason: '',
+    }])
+  }
+  const updateDraftChange = (idx: number, key: keyof ScheduleChangeDraft, value: string) => {
+    setDraftChanges(list => list.map((d, i) => i === idx ? { ...d, [key]: value } : d))
+  }
+  const removeDraftChange = (idx: number) => {
+    setDraftChanges(list => list.filter((_, i) => i !== idx))
+  }
+
+  /**
+   * 이미 저장된 [최초]/[변경 N] 이력 항목을 나중에 오타 등으로 잘못 기록했을 때 바로잡기 위한 수정.
+   * 가장 마지막(최신) 항목의 날짜를 고치면 현재 일정인 상단 기획시작일자/완료예정일도 함께 갱신한다.
+   */
+  const updateHistoryEntry = (idx: number, key: keyof ScheduleChange, value: string) => {
+    setForm(f => {
+      const schedule_history = f.schedule_history.map((h, i) => i === idx ? { ...h, [key]: value || null } : h)
+      const isLast = idx === f.schedule_history.length - 1
+      return {
+        ...f,
+        schedule_history,
+        start_date: isLast && key === 'start_date' ? (value || null) : f.start_date,
+        due_date:   isLast && key === 'due_date'   ? (value || null) : f.due_date,
+      }
+    })
+  }
 
   const handlePasteSummary = async (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
     const item = Array.from(e.clipboardData.items).find(i => i.type.startsWith('image/'))
@@ -139,6 +179,10 @@ export default function RequestForm({ initial, currentUser, onSave, onClose }: P
     const e: Record<string, string> = {}
     if (!form.title.trim())        e.title = '업무명을 입력하세요.'
     if (!form.request_date)        e.request_date = '등록일자를 입력하세요.'
+    draftChanges.forEach((d, i) => {
+      if (!d.start_date || !d.due_date) e[`schedule_${i}`] = '변경된 기획시작일자/완료예정일을 모두 입력하세요.'
+      if (!d.reason.trim())             e[`schedule_reason_${i}`] = '변경 사유를 입력하세요.'
+    })
     setErrors(e)
     return Object.keys(e).length === 0
   }
@@ -149,7 +193,25 @@ export default function RequestForm({ initial, currentUser, onSave, onClose }: P
     setSaving(true)
     try {
       const requester = form.requester.trim() || form.assignee.trim() || currentUser || ''
-      await onSave({ ...form, requester })
+      let payload: RequestInput = { ...form, requester }
+
+      if (draftChanges.length > 0) {
+        const history = [...form.schedule_history]
+        if (history.length === 0) {
+          history.push({
+            start_date: initial?.start_date ?? null,
+            due_date: initial?.due_date ?? null,
+            reason: null,
+          })
+        }
+        draftChanges.forEach(d => {
+          history.push({ start_date: d.start_date, due_date: d.due_date, reason: d.reason.trim() })
+        })
+        const last = draftChanges[draftChanges.length - 1]
+        payload = { ...payload, schedule_history: history, start_date: last.start_date, due_date: last.due_date }
+      }
+
+      await onSave(payload)
       onClose()
     } finally {
       setSaving(false)
@@ -335,6 +397,97 @@ export default function RequestForm({ initial, currentUser, onSave, onClose }: P
                 className={inputCls()}
               />
             </Field>
+          </div>
+
+          {/* 일정 변경 이력 */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-sm font-medium text-gray-700">일정 변경 이력</span>
+              <button
+                type="button"
+                onClick={addScheduleChange}
+                className="text-xs text-indigo-600 hover:text-indigo-700 font-medium"
+              >
+                + 일정 변경
+              </button>
+            </div>
+
+            {form.schedule_history.length > 0 && (
+              <div className="space-y-1.5 bg-gray-50 rounded-md p-2.5">
+                {form.schedule_history.map((h, i) => (
+                  <div key={i} className="flex flex-wrap items-center gap-1.5">
+                    <span className="text-xs font-medium text-gray-600 shrink-0 w-14">{i === 0 ? '[최초]' : `[변경 ${i}]`}</span>
+                    <input
+                      type="date"
+                      value={h.start_date ?? ''}
+                      onChange={e => updateHistoryEntry(i, 'start_date', e.target.value)}
+                      className="text-xs border border-gray-200 rounded px-1.5 py-1 focus:outline-none focus:ring-2 focus:ring-indigo-200"
+                    />
+                    <span className="text-gray-400 text-xs">~</span>
+                    <input
+                      type="date"
+                      value={h.due_date ?? ''}
+                      onChange={e => updateHistoryEntry(i, 'due_date', e.target.value)}
+                      className="text-xs border border-gray-200 rounded px-1.5 py-1 focus:outline-none focus:ring-2 focus:ring-indigo-200"
+                    />
+                    {i > 0 && (
+                      <input
+                        type="text"
+                        value={h.reason ?? ''}
+                        onChange={e => updateHistoryEntry(i, 'reason', e.target.value)}
+                        placeholder="변경 사유"
+                        className="flex-1 min-w-[120px] text-xs border border-gray-200 rounded px-1.5 py-1 focus:outline-none focus:ring-2 focus:ring-indigo-200"
+                      />
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {draftChanges.map((d, i) => {
+              const n = Math.max(form.schedule_history.length, 1) + i
+              return (
+                <div key={i} className="border border-indigo-100 bg-indigo-50/40 rounded-md p-3 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-semibold text-indigo-600">변경 {n}</span>
+                    <button
+                      type="button"
+                      onClick={() => removeDraftChange(i)}
+                      className="text-xs text-gray-400 hover:text-red-500"
+                    >
+                      삭제
+                    </button>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <Field label={`기획시작일자 (변경 ${n})`} error={errors[`schedule_${i}`]}>
+                      <input
+                        type="date"
+                        value={d.start_date}
+                        onChange={e => updateDraftChange(i, 'start_date', e.target.value)}
+                        className={inputCls(errors[`schedule_${i}`])}
+                      />
+                    </Field>
+                    <Field label={`기획완료예정일 (변경 ${n})`} error={errors[`schedule_${i}`]}>
+                      <input
+                        type="date"
+                        value={d.due_date}
+                        onChange={e => updateDraftChange(i, 'due_date', e.target.value)}
+                        className={inputCls(errors[`schedule_${i}`])}
+                      />
+                    </Field>
+                  </div>
+                  <Field label="변경 사유" error={errors[`schedule_reason_${i}`]}>
+                    <input
+                      type="text"
+                      value={d.reason}
+                      onChange={e => updateDraftChange(i, 'reason', e.target.value)}
+                      placeholder="예: 클라이언트 추가 요구사항 반영"
+                      className={inputCls(errors[`schedule_reason_${i}`])}
+                    />
+                  </Field>
+                </div>
+              )
+            })}
           </div>
 
           {/* Row 5: 지라 링크 */}

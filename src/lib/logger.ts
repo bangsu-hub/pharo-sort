@@ -15,6 +15,7 @@ export const FIELD_LABELS: Record<string, string> = {
   jira_link:    'Jira 링크',
   jira_key:     'Jira 키',
   jira_status:  'Jira 상태',
+  schedule_history: '일정 변경 이력',
 }
 
 interface LogEntry {

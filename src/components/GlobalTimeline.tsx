@@ -67,6 +67,7 @@ interface Props {
 const BAR_H = 22
 const BAR_GAP = 6
 const ROW_PAD = 10
+const HIST_LINE_H = 5   // 과거 이력(최초~마지막 직전) 한 줄의 높이
 
 /** 전체 담당자를 Y축, 기간을 X축으로 하는 통합 리소스 타임라인 (기획시작일자~기획완료예정일 막대) */
 export default function GlobalTimeline({ requests, onSelectIssue }: Props) {
@@ -155,7 +156,14 @@ export default function GlobalTimeline({ requests, onSelectIssue }: Props) {
         return { ...b, lane }
       })
 
-      return { name, bars, laneCount: Math.max(laneEnds.length, 1) }
+      // 이 담당자 행에서 가장 변경 차수가 많은 건 기준으로 행 간격을 넉넉히 잡아 이력 라인이 다음 행과 겹치지 않게 한다
+      const maxPastSteps = bars.reduce((max, b) => {
+        const steps = Math.max((b.r.schedule_history?.length ?? 0) - 1, 0)
+        return Math.max(max, steps)
+      }, 0)
+      const rowGap = BAR_GAP + maxPastSteps * HIST_LINE_H
+
+      return { name, bars, laneCount: Math.max(laneEnds.length, 1), rowGap }
     })
   }, [requests, days, rangeStart, rangeEnd])
 
@@ -240,13 +248,13 @@ export default function GlobalTimeline({ requests, onSelectIssue }: Props) {
 
           {/* 담당자별 행 */}
           <div className="mt-1 divide-y divide-gray-50">
-            {laneRows.map(({ name, bars, laneCount }) => (
+            {laneRows.map(({ name, bars, laneCount, rowGap }) => (
               <div key={name} className="flex items-stretch py-1.5">
                 <div className="w-24 shrink-0 flex items-center gap-1.5 pr-2">
                   <span className="text-lg">{MEMBER_EMOJI[name]}</span>
                   <span className="text-xs font-medium text-gray-600 truncate">{name}</span>
                 </div>
-                <div className="flex-1 relative" style={{ height: laneCount * (BAR_H + BAR_GAP) + ROW_PAD }}>
+                <div className="flex-1 relative" style={{ height: laneCount * (BAR_H + rowGap) + ROW_PAD }}>
                   {todayIdx !== -1 && (
                     <div className="absolute top-0 bottom-0 w-px bg-indigo-200"
                       style={{ left: `${((todayIdx + 0.5) / cellCount) * 100}%` }} />
@@ -255,23 +263,55 @@ export default function GlobalTimeline({ requests, onSelectIssue }: Props) {
                     <div className="absolute inset-0 flex items-center">
                       <span className="text-xs text-gray-300">일정 없음</span>
                     </div>
-                  ) : bars.map(({ r, startIdx, endIdx, hasStart, lane }) => (
-                    <button
-                      key={r.id}
-                      type="button"
-                      onClick={() => onSelectIssue(r)}
-                      title={`${r.title} (${r.start_date ?? '시작일 미정'} ~ ${r.due_date})`}
-                      className={`absolute rounded-md px-2 flex items-center text-[11px] font-medium text-white truncate text-left hover:brightness-95 transition-all ${STATUS_BAR_COLOR[r.status]} ${hasStart ? '' : 'opacity-60 border border-dashed border-white/70'}`}
-                      style={{
-                        left: `${(startIdx / cellCount) * 100}%`,
-                        width: `${Math.max(((endIdx - startIdx + 1) / cellCount) * 100, 100 / cellCount)}%`,
-                        top: lane * (BAR_H + BAR_GAP),
-                        height: BAR_H,
-                      }}
-                    >
-                      {r.title}
-                    </button>
-                  ))}
+                  ) : bars.map(({ r, startIdx, endIdx, hasStart, lane }) => {
+                    const history = r.schedule_history ?? []
+                    // 현재(최신) 일정은 메인 막대로 이미 표시되므로, 그 이전 단계(최초~마지막 직전)만 과거 이력으로 표기
+                    const pastEntries = history.slice(0, -1)
+                    const pastBars = pastEntries.map(h => {
+                      const hStart = h.start_date ?? h.due_date
+                      const hEnd = h.due_date ?? h.start_date
+                      if (!hStart || !hEnd || hEnd < rangeStart || hStart > rangeEnd) return null
+                      const cs = hStart > rangeStart ? hStart : rangeStart
+                      const ce = hEnd < rangeEnd ? hEnd : rangeEnd
+                      const hsi = days.findIndex(d => toDateStr(d) === cs)
+                      const hei = days.findIndex(d => toDateStr(d) === ce)
+                      if (hsi === -1 || hei === -1) return null
+                      return {
+                        left: (hsi / cellCount) * 100,
+                        width: Math.max(((hei - hsi + 1) / cellCount) * 100, 100 / cellCount),
+                      }
+                    })
+                    const tooltip = [
+                      `${r.title} (${r.start_date ?? '시작일 미정'} ~ ${r.due_date})`,
+                      ...history.map((h, i) =>
+                        `${i === 0 ? '[최초]' : `[변경 ${i}]`} ${h.start_date ?? '미정'} ~ ${h.due_date ?? '미정'}${h.reason ? ` (사유: ${h.reason})` : ''}`
+                      ),
+                    ].join('\n')
+                    return (
+                      <div key={r.id} className="absolute" style={{ left: 0, right: 0, top: lane * (BAR_H + rowGap), height: BAR_H }}>
+                        {pastBars.map((pb, i) => pb && (
+                          <div key={i} className="absolute" style={{ left: `${pb.left}%`, width: `${pb.width}%`, top: BAR_H + i * HIST_LINE_H, height: HIST_LINE_H }}>
+                            <div className="absolute inset-x-0 top-1/2 border-t-[3px] border-dashed border-gray-500" />
+                            <div className="absolute left-0 top-0 bottom-0 w-[2px] bg-gray-500" />
+                            <div className="absolute right-0 top-0 bottom-0 w-[2px] bg-gray-500" />
+                          </div>
+                        ))}
+                        <button
+                          type="button"
+                          onClick={() => onSelectIssue(r)}
+                          title={tooltip}
+                          className={`absolute top-0 rounded-md px-2 flex items-center text-[11px] font-medium text-white truncate text-left hover:brightness-95 transition-all ${STATUS_BAR_COLOR[r.status]} ${hasStart ? '' : 'opacity-60 border border-dashed border-white/70'}`}
+                          style={{
+                            left: `${(startIdx / cellCount) * 100}%`,
+                            width: `${Math.max(((endIdx - startIdx + 1) / cellCount) * 100, 100 / cellCount)}%`,
+                            height: BAR_H,
+                          }}
+                        >
+                          {r.title}
+                        </button>
+                      </div>
+                    )
+                  })}
                 </div>
               </div>
             ))}
@@ -291,6 +331,9 @@ export default function GlobalTimeline({ requests, onSelectIssue }: Props) {
         </span>
         <span className="flex items-center gap-1 text-red-400">
           <span className="w-2.5 h-2.5 rounded-full inline-block border border-red-300" />주말/공휴일
+        </span>
+        <span className="flex items-center gap-1">
+          <span className="w-3 h-1 rounded-sm inline-block border border-dashed border-gray-400 bg-gray-100" />과거 일정(최초~직전 변경, 위부터 오래된 순)
         </span>
       </div>
 
