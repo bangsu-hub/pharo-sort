@@ -78,6 +78,9 @@ interface Bar {
 interface Props {
   requests: Request[]
   onSelectIssue: (r: Request) => void
+  /** 일정 변경 이력 아코디언이 펼쳐진 업무 ID 집합 (부모에서 관리 — "전체 열기/닫기" 버튼과 공유하기 위함) */
+  expandedTaskIds: Set<number>
+  onToggleHistory: (id: number) => void
 }
 
 const BAR_H = 22
@@ -85,12 +88,11 @@ const BAR_GAP = 6
 const ROW_PAD = 10
 
 /** 전체 담당자를 Y축, 기간을 X축으로 하는 통합 리소스 타임라인 (기획시작일자~기획완료예정일 막대) */
-export default function GlobalTimeline({ requests, onSelectIssue }: Props) {
+export default function GlobalTimeline({ requests, onSelectIssue, expandedTaskIds, onToggleHistory }: Props) {
   const [viewMode, setViewMode] = useState<ViewMode>('month')
   const [offset, setOffset] = useState(0)
   const [unplottableOpen, setUnplottableOpen] = useState(false)
   const [sortByAssignee, setSortByAssignee] = useState(false)
-  const [expandedTaskId, setExpandedTaskId] = useState<number | null>(null)
 
   const changeMode = (mode: ViewMode) => {
     setViewMode(mode)
@@ -301,7 +303,7 @@ export default function GlobalTimeline({ requests, onSelectIssue }: Props) {
                           {hasHistory && (
                             <button
                               type="button"
-                              onClick={e => { e.stopPropagation(); setExpandedTaskId(id => id === r.id ? null : r.id) }}
+                              onClick={e => { e.stopPropagation(); onToggleHistory(r.id) }}
                               title="일정 변경 이력 보기"
                               className="absolute z-10 w-4 h-4 rounded-full bg-white text-[9px] leading-none flex items-center justify-center shadow border border-gray-200 hover:scale-110 transition-transform"
                               style={{ left: `calc(${barLeft}% - 7px)`, top: -6 }}
@@ -317,7 +319,7 @@ export default function GlobalTimeline({ requests, onSelectIssue }: Props) {
 
                 {/* 변경 이력 아코디언 — 아이콘 클릭 시 해당 건의 최초~직전 변경 이력을 행 아래에 펼침 */}
                 {bars.filter(b => (b.r.schedule_history?.length ?? 0) > 0).map(({ r }) => {
-                  const isOpen = expandedTaskId === r.id
+                  const isOpen = expandedTaskIds.has(r.id)
                   const history = r.schedule_history ?? []
                   const pastEntries = history.slice(0, -1)
                   return (

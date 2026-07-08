@@ -23,6 +23,7 @@ export default function TimelinePage() {
   const [showDone, setShowDone] = useState(false)
   const [editing, setEditing] = useState<Request | null>(null)
   const [showForm, setShowForm] = useState(false)
+  const [expandedTaskIds, setExpandedTaskIds] = useState<Set<number>>(new Set())
 
   const addToast = useCallback((type: Toast['type'], message: string) => {
     const id = Date.now()
@@ -47,6 +48,24 @@ export default function TimelinePage() {
     () => showDone ? requests : requests.filter(r => r.status !== '완료'),
     [requests, showDone]
   )
+
+  const historiedTaskIds = useMemo(
+    () => activeRequests.filter(r => (r.schedule_history?.length ?? 0) > 0).map(r => r.id),
+    [activeRequests]
+  )
+  const allHistoryOpen = historiedTaskIds.length > 0 && historiedTaskIds.every(id => expandedTaskIds.has(id))
+
+  const toggleHistory = (id: number) => {
+    setExpandedTaskIds(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+  const toggleAllHistory = () => {
+    setExpandedTaskIds(allHistoryOpen ? new Set() : new Set(historiedTaskIds))
+  }
 
   const handleSave = async (data: RequestInput) => {
     if (!editing) return
@@ -161,9 +180,21 @@ export default function TimelinePage() {
             <h2 className="text-sm font-bold text-gray-800">전체 담당자 통합 캘린더</h2>
             <p className="text-xs text-gray-400 mt-0.5">기획시작일자~기획완료예정일 구간을 담당자별로 모아봅니다. 막대 클릭 시 수정할 수 있습니다.</p>
           </div>
+          {historiedTaskIds.length > 0 && (
+            <button
+              onClick={toggleAllHistory}
+              className={`ml-auto flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full border font-medium transition-all ${
+                allHistoryOpen
+                  ? 'bg-indigo-600 text-white border-indigo-600'
+                  : 'bg-white text-gray-500 border-gray-200 hover:border-indigo-400 hover:text-indigo-600'
+              }`}
+            >
+              ⚠️ 일정 변경 이력 {allHistoryOpen ? '전체 닫기' : '전체 보기'}
+            </button>
+          )}
           <button
             onClick={() => setShowDone(v => !v)}
-            className={`ml-auto flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full border font-medium transition-all ${
+            className={`${historiedTaskIds.length > 0 ? '' : 'ml-auto'} flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full border font-medium transition-all ${
               showDone
                 ? 'bg-green-600 text-white border-green-600'
                 : 'bg-white text-gray-500 border-gray-200 hover:border-green-400 hover:text-green-600'
@@ -176,6 +207,8 @@ export default function TimelinePage() {
         <GlobalTimeline
           requests={activeRequests}
           onSelectIssue={r => { setEditing(r); setShowForm(true) }}
+          expandedTaskIds={expandedTaskIds}
+          onToggleHistory={toggleHistory}
         />
 
       </main>
