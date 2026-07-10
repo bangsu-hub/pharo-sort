@@ -65,6 +65,19 @@ function clipToGrid(
   return { left: (si / cellCount) * 100, width: Math.max(((ei - si + 1) / cellCount) * 100, 100 / cellCount) }
 }
 
+/** 시작~완료 구간의 영업일 수 (양 끝 날짜 포함, 주말/공휴일 제외) */
+function countBusinessDays(start: string, end: string): number {
+  let count = 0
+  const d = new Date(`${start}T00:00:00`)
+  const endD = new Date(`${end}T00:00:00`)
+  while (d <= endD) {
+    const dow = d.getDay()
+    if (dow !== 0 && dow !== 6 && !KR_HOLIDAYS.has(toDateStr(d))) count++
+    d.setDate(d.getDate() + 1)
+  }
+  return count
+}
+
 type ViewMode = 'week' | 'month'
 
 interface Bar {
@@ -234,7 +247,7 @@ export default function GlobalTimeline({ requests, onSelectIssue, expandedTaskId
         <div style={{ minWidth: cellCount * (viewMode === 'week' ? 110 : 28) + 100 }}>
           {/* 날짜 헤더 */}
           <div className="flex">
-            <div className="w-24 shrink-0" />
+            <div className="w-24 shrink-0 sticky left-0 z-10 bg-white" />
             <div className="flex-1 flex">
               {days.map(d => {
                 const isToday = toDateStr(d) === todayStr
@@ -257,48 +270,57 @@ export default function GlobalTimeline({ requests, onSelectIssue, expandedTaskId
             </div>
           </div>
 
-          {/* 담당자별 행 */}
-          <div className="mt-1 divide-y divide-gray-50">
-            {laneRows.map(({ name, bars, laneCount }) => (
-              <div key={name}>
+          {/* 담당자별 행 — 담당자 1명 = 테두리 있는 카드 하나로 보이게 하고, 카드 사이에 실제 여백을 둬서
+              색 차이에만 의존하지 않고 구조적으로도 구분되게 한다 */}
+          <div className="flex flex-col gap-4">
+            {laneRows.map(({ name, bars, laneCount }, idx) => {
+              const subRowBg = 'bg-gray-50'
+              // 카드 테두리/여백에 더해, 한 명 걸러 한 명씩 연한 색을 깔아 구분을 한층 더 뚜렷하게 한다
+              // (보조 행의 회색과 헷갈리지 않도록 다른 색 계열(인디고)을 사용)
+              const groupBg = idx % 2 === 0 ? 'bg-indigo-50/40' : 'bg-white'
+              // 일정 개수와 무관하게 담당자 영역이 공통으로 최소 3줄 높이는 확보되게 한다
+              const displayLanes = Math.max(laneCount, 3)
+              return (
+              <div key={name} className={`relative border border-gray-300 ${groupBg}`}>
+                <div className="absolute left-0 top-0 bottom-0 w-1 bg-indigo-300 z-20" />
                 <div className="flex items-stretch py-1.5">
-                  <div className="w-24 shrink-0 flex items-center gap-1.5 pr-2">
-                    <span className="text-lg">{MEMBER_EMOJI[name]}</span>
-                    <span className="text-xs font-medium text-gray-600 truncate">{name}</span>
+                  <div className={`w-24 shrink-0 flex flex-col items-center justify-center gap-0.5 px-2 sticky left-0 z-10 ${groupBg}`}>
+                    <span className="text-2xl leading-none">{MEMBER_EMOJI[name]}</span>
+                    <span className="text-sm font-bold text-gray-700 truncate max-w-full">{name}</span>
                   </div>
-                  <div className="flex-1 relative" style={{ height: laneCount * (BAR_H + BAR_GAP) + ROW_PAD }}>
+                  <div className="flex-1 relative" style={{ height: displayLanes * (BAR_H + BAR_GAP) + ROW_PAD }}>
                     {todayIdx !== -1 && (
                       <div className="absolute top-0 bottom-0 w-px bg-indigo-200"
                         style={{ left: `${((todayIdx + 0.5) / cellCount) * 100}%` }} />
                     )}
                     {bars.length === 0 ? (
                       <div className="absolute inset-0 flex items-center">
-                        <span className="text-xs text-gray-300">일정 없음</span>
+                        <span className="text-[11px] text-gray-400 bg-gray-100/80 px-2.5 py-1 rounded-full border border-dashed border-gray-200">일정 없음</span>
                       </div>
                     ) : bars.map(({ r, startIdx, endIdx, hasStart, lane }) => {
                       const history = r.schedule_history ?? []
                       const hasHistory = history.length > 0
                       const barLeft = (startIdx / cellCount) * 100
+                      const barWidth = Math.max(((endIdx - startIdx + 1) / cellCount) * 100, 100 / cellCount)
+                      const businessDays = hasStart && r.start_date && r.due_date
+                        ? countBusinessDays(r.start_date, r.due_date)
+                        : null
+                      const businessDaysLabel = businessDays !== null ? ` (영업일 ${businessDays}일)` : ''
                       const tooltip = [
-                        `${r.title} (${r.start_date ?? '시작일 미정'} ~ ${r.due_date})`,
+                        `${r.title} (${r.start_date ?? '시작일 미정'} ~ ${r.due_date})${businessDaysLabel}`,
                         ...history.map((h, i) =>
                           `${i === 0 ? '[최초]' : `[변경 ${i}]`} ${h.start_date ?? '미정'} ~ ${h.due_date ?? '미정'}${h.reason ? ` (사유: ${h.reason})` : ''}`
                         ),
                       ].join('\n')
                       return (
-                        <div key={r.id} className="absolute" style={{ left: 0, right: 0, top: lane * (BAR_H + BAR_GAP), height: BAR_H }}>
+                        <div key={r.id} className="absolute" style={{ left: `${barLeft}%`, width: `${barWidth}%`, top: lane * (BAR_H + BAR_GAP), height: BAR_H }}>
                           <button
                             type="button"
                             onClick={() => onSelectIssue(r)}
                             title={tooltip}
-                            className={`absolute top-0 rounded-md px-2 flex items-center text-[11px] font-medium text-white truncate text-left hover:brightness-95 transition-all ${STATUS_BAR_COLOR[r.status]} ${hasStart ? '' : 'opacity-60 border border-dashed border-white/70'}`}
-                            style={{
-                              left: `${barLeft}%`,
-                              width: `${Math.max(((endIdx - startIdx + 1) / cellCount) * 100, 100 / cellCount)}%`,
-                              height: BAR_H,
-                            }}
+                            className={`absolute inset-0 rounded-md px-2 flex items-center text-[11px] font-medium text-white truncate text-left hover:brightness-95 transition-all ${STATUS_BAR_COLOR[r.status]} ${hasStart ? '' : 'opacity-60 border border-dashed border-white/70'}`}
                           >
-                            {r.title}
+                            {r.title}{businessDaysLabel && <span className="opacity-80 font-normal">{businessDaysLabel}</span>}
                           </button>
                           {hasHistory && (
                             <button
@@ -306,7 +328,7 @@ export default function GlobalTimeline({ requests, onSelectIssue, expandedTaskId
                               onClick={e => { e.stopPropagation(); onToggleHistory(r.id) }}
                               title="일정 변경 이력 보기"
                               className="absolute z-10 w-4 h-4 rounded-full bg-white text-[9px] leading-none flex items-center justify-center shadow border border-gray-200 hover:scale-110 transition-transform"
-                              style={{ left: `calc(${barLeft}% - 7px)`, top: -6 }}
+                              style={{ left: -7, top: -6 }}
                             >
                               ⚠️
                             </button>
@@ -325,7 +347,7 @@ export default function GlobalTimeline({ requests, onSelectIssue, expandedTaskId
                   return (
                     <div key={r.id} style={{ display: 'grid', gridTemplateRows: isOpen ? '1fr' : '0fr', transition: 'grid-template-rows 200ms ease' }}>
                       <div style={{ overflow: 'hidden' }}>
-                        <div className="pt-1.5 pb-2 bg-gray-50/70 border-t border-dashed border-gray-200 space-y-1">
+                        <div className={`pt-1.5 pb-2 ${subRowBg} space-y-1`}>
                           {pastEntries.map((h, i) => {
                             const pos = clipToGrid(h.start_date, h.due_date, rangeStart, rangeEnd, days, cellCount)
                             const label = i === 0 ? '최초 계획' : `변경 ${i}회차`
@@ -334,7 +356,7 @@ export default function GlobalTimeline({ requests, onSelectIssue, expandedTaskId
                             return (
                               <div key={i} className="flex items-stretch">
                                 <div className="w-24 shrink-0 pl-4 pr-2 flex items-center">
-                                  <span className="text-[10px] text-gray-400 truncate">└ {label}</span>
+                                  <span className="text-[10px] text-gray-400 truncate border-l-2 border-gray-300 pl-1.5 -ml-1">{label}</span>
                                 </div>
                                 <div className="flex-1 relative" style={{ height: 18 }}>
                                   {pos && (
@@ -356,7 +378,8 @@ export default function GlobalTimeline({ requests, onSelectIssue, expandedTaskId
                   )
                 })}
               </div>
-            ))}
+              )
+            })}
           </div>
         </div>
       </div>
