@@ -25,6 +25,7 @@ export const MCP_WRITE_TOOLS: McpToolMeta[] = [
   { name: 'ps_set_start_date',    description: '기획시작일자 설정/삭제' },
   { name: 'ps_set_due_date',      description: '기획완료예정일 설정/삭제' },
   { name: 'ps_add_schedule_change', description: '일정 변경 이력(차수) 추가 및 현재 일정 갱신' },
+  { name: 'ps_delete_schedule_change', description: '일정 변경 이력 항목 삭제 (마지막 항목 삭제 시 현재 일정도 갱신)' },
   { name: 'ps_set_deploy_date',   description: '배포예정일 설정/삭제' },
   { name: 'ps_sync_jira',         description: '지라 → Pharo-Sort 동기화 트리거' },
   { name: 'ps_create_jira_issue', description: '수동 등록 업무 → 신규 Jira 이슈 생성 후 연결 (처리자 개인 Jira 계정 필요)' },

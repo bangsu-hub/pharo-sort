@@ -382,6 +382,45 @@ const handler = createMcpHandler(
     )
 
     server.registerTool(
+      'ps_delete_schedule_change',
+      {
+        title: '일정 변경 이력 항목 삭제',
+        description: '업무의 "일정 변경 이력" 목록에서 [최초]/[변경 N] 항목 하나를 삭제합니다. 마지막(최신) 항목을 삭제하면 그 앞 항목이 새 현재 일정이 되어 기획시작일자/완료예정일에도 자동 반영됩니다.',
+        inputSchema: {
+          user_name: z.string().describe('처리자 이름 (변경 이력에 기록됨)'),
+          id:        z.number().int().describe('업무 ID'),
+          index:     z.number().int().min(0).describe('삭제할 이력 항목의 인덱스 (0=최초, 1=변경 1, 2=변경 2, ...)'),
+        },
+      },
+      async ({ user_name, id, index }) => {
+        try {
+          const before = await fetchRequestById(id)
+          if (!before) return errorText(`업무 #${id}를 찾을 수 없습니다.`)
+
+          const history = Array.isArray(before.schedule_history) ? before.schedule_history : []
+          if (index >= history.length) {
+            return errorText(`인덱스 ${index}에 해당하는 이력 항목이 없습니다 (전체 ${history.length}건).`)
+          }
+
+          const wasLast = index === history.length - 1
+          const newHistory = history.filter((_, i) => i !== index)
+
+          const patch: Partial<PSRequest> = { schedule_history: newHistory }
+          if (wasLast && newHistory.length > 0) {
+            const newLast = newHistory[newHistory.length - 1]
+            patch.start_date = newLast.start_date
+            patch.due_date = newLast.due_date
+          }
+
+          const updated = await patchRequest(id, patch, user_name)
+          return updated ? text(updated) : errorText(`업무 #${id}를 찾을 수 없습니다.`)
+        } catch (e) {
+          return errorText(e instanceof Error ? e.message : String(e))
+        }
+      }
+    )
+
+    server.registerTool(
       'ps_set_deploy_date',
       {
         title: '배포예정일 변경',
