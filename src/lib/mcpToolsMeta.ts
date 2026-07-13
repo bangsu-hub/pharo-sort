@@ -29,4 +29,5 @@ export const MCP_WRITE_TOOLS: McpToolMeta[] = [
   { name: 'ps_sync_jira',         description: '지라 → Pharo-Sort 동기화 트리거' },
   { name: 'ps_create_jira_issue', description: '수동 등록 업무 → 신규 Jira 이슈 생성 후 연결 (처리자 개인 Jira 계정 필요)' },
   { name: 'ps_update_feedback_status', description: '피드백 처리 상태 변경 (접수/확인중/반영완료/반려)' },
+  { name: 'ps_delete_activity_log', description: '변경 이력(활동 로그) 1건 영구 삭제' },
 ]

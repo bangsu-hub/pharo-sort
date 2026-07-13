@@ -33,12 +33,8 @@ export default function LoginPage() {
 
       {/* 로고 */}
       <div className="mb-10 text-center">
-        <div className="w-16 h-16 bg-indigo-600 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg">
-          <svg className="w-9 h-9 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-              d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
-          </svg>
-        </div>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src="/logo.svg" alt="Pharo-Sort" className="w-16 h-16 rounded-2xl object-contain mx-auto mb-4 shadow-lg" />
         <h1 className="text-2xl font-black text-gray-900 tracking-tight">Pharo-Sort</h1>
         <p className="text-sm text-gray-400 mt-1">파로스 기획팀 업무 관리 시스템</p>
       </div>

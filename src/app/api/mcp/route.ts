@@ -455,6 +455,26 @@ const handler = createMcpHandler(
         return text(data)
       }
     )
+
+    server.registerTool(
+      'ps_delete_activity_log',
+      {
+        title: '변경 이력 삭제',
+        description: '업무 변경 이력(활동 로그) 1건을 영구 삭제합니다. 삭제 후 복구할 수 없으니 신중히 사용하세요.',
+        inputSchema: {
+          id: z.number().int().describe('삭제할 활동 로그 ID (ps_list_activity_log 조회 결과의 id 값)'),
+        },
+      },
+      async ({ id }) => {
+        const { data: before } = await supabase.from('activity_logs').select('id').eq('id', id).single()
+        if (!before) return errorText(`활동 로그 #${id}를 찾을 수 없습니다.`)
+
+        const { error } = await supabase.from('activity_logs').delete().eq('id', id)
+        if (error) return errorText(error.message)
+
+        return text({ deleted: true, id })
+      }
+    )
   },
   {},
   { basePath: '/api', maxDuration: 60 }
