@@ -5,6 +5,7 @@ export const FIELD_LABELS: Record<string, string> = {
   status:       '기획진행상태',
   start_date:   '기획시작일자',
   due_date:     '기획완료예정일',
+  actual_due_date: '실제완료일',
   deploy_date:  '배포예정일',
   request_team: '요청팀',
   priority:     '우선순위',

@@ -24,6 +24,7 @@ export const MCP_WRITE_TOOLS: McpToolMeta[] = [
   { name: 'ps_assign',            description: '담당자 배정/해제' },
   { name: 'ps_set_start_date',    description: '기획시작일자 설정/삭제' },
   { name: 'ps_set_due_date',      description: '기획완료예정일 설정/삭제' },
+  { name: 'ps_set_actual_due_date', description: '실제 완료일 설정/삭제' },
   { name: 'ps_add_schedule_change', description: '일정 변경 이력(차수) 추가 및 현재 일정 갱신' },
   { name: 'ps_delete_schedule_change', description: '일정 변경 이력 항목 삭제 (마지막 항목 삭제 시 현재 일정도 갱신)' },
   { name: 'ps_set_deploy_date',   description: '배포예정일 설정/삭제' },

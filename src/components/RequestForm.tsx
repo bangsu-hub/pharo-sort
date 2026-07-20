@@ -25,6 +25,7 @@ const EMPTY: RequestInput = {
   status: '대기',
   start_date: null,
   due_date: null,
+  actual_due_date: null,
   deploy_date: null,
   jira_link: null,
   jira_key: null,
@@ -180,6 +181,9 @@ export default function RequestForm({ initial, currentUser, onSave, onClose }: P
       start_date: f.status !== '기획중' && next === '기획중' && !f.start_date
         ? new Date().toISOString().slice(0, 10)
         : f.start_date,
+      actual_due_date: f.status !== '완료' && next === '완료' && !f.actual_due_date
+        ? new Date().toISOString().slice(0, 10)
+        : f.actual_due_date,
     }))
   }
 
@@ -392,13 +396,21 @@ export default function RequestForm({ initial, currentUser, onSave, onClose }: P
             </Field>
           </div>
 
-          {/* Row 4: 기획 완료 예정일 + 배포예정일 */}
-          <div className="grid grid-cols-2 gap-4">
+          {/* Row 4: 기획 완료 예정일 + 실제 완료일 + 배포예정일 */}
+          <div className="grid grid-cols-3 gap-4">
             <Field label="기획 완료 예정일">
               <input
                 type="date"
                 value={form.due_date ?? ''}
                 onChange={e => update('due_date', e.target.value || null)}
+                className={inputCls()}
+              />
+            </Field>
+            <Field label="실제 완료일">
+              <input
+                type="date"
+                value={form.actual_due_date ?? ''}
+                onChange={e => update('actual_due_date', e.target.value || null)}
                 className={inputCls()}
               />
             </Field>

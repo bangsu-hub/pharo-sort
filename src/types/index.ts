@@ -20,6 +20,7 @@ export interface Request {
   status: Status
   start_date: string | null   // 기획 시작일자 (현재/최신 일정)
   due_date: string | null     // 기획 완료 예정일 (현재/최신 일정)
+  actual_due_date: string | null  // 실제 완료일
   deploy_date: string | null  // 배포 예정일
   jira_link: string | null
   jira_key: string | null

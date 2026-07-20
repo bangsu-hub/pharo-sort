@@ -78,6 +78,13 @@ function countBusinessDays(start: string, end: string): number {
   return count
 }
 
+/** b - a (일수). 양수면 b가 더 늦음 */
+function diffDays(a: string, b: string): number {
+  const da = new Date(`${a}T00:00:00`)
+  const db = new Date(`${b}T00:00:00`)
+  return Math.round((db.getTime() - da.getTime()) / 86400000)
+}
+
 type ViewMode = 'week' | 'month'
 
 interface Bar {
@@ -163,7 +170,9 @@ export default function GlobalTimeline({ requests, onSelectIssue, expandedTaskId
           const start = hasStart
             ? (r.start_date! > rangeStart ? r.start_date! : rangeStart)
             : r.due_date!
-          const end = r.due_date! < rangeEnd ? r.due_date! : rangeEnd
+          // 실제 완료일이 예정일보다 늦으면(초과), 레인 배치도 그만큼 넓게 예약해야 다음 업무와 안 겹친다.
+          const outerEndRaw = r.actual_due_date && r.actual_due_date > r.due_date! ? r.actual_due_date : r.due_date!
+          const end = outerEndRaw < rangeEnd ? outerEndRaw : rangeEnd
           const startIdx = days.findIndex(d => toDateStr(d) === start)
           const endIdx = days.findIndex(d => toDateStr(d) === end)
           return {
@@ -306,8 +315,30 @@ export default function GlobalTimeline({ requests, onSelectIssue, expandedTaskId
                         ? countBusinessDays(r.start_date, r.due_date)
                         : null
                       const businessDaysLabel = businessDays !== null ? ` (영업일 ${businessDays}일)` : ''
+
+                      // 실제 완료일이 예정일과 다르면, 막대를 "계획대로 진행된 구간(상태색)"과
+                      // "초과/단축된 구간(경고색/회색)"으로 나눠서 그 차이만큼만 보여준다.
+                      const hasActual = !!r.actual_due_date && !!r.due_date
+                      const late = hasActual && r.actual_due_date! > r.due_date!
+                      const early = hasActual && r.actual_due_date! < r.due_date!
+                      const varianceDays = hasActual ? diffDays(r.due_date!, r.actual_due_date!) : 0
+                      const varianceLabel = late ? ` (예정보다 ${varianceDays}일 초과)` : early ? ` (예정보다 ${-varianceDays}일 단축)` : ''
+
+                      const wrapperSpan = endIdx - startIdx + 1
+                      let solidWidthPct = 100
+                      if (late || early) {
+                        const solidEndRaw = early ? r.actual_due_date! : r.due_date!
+                        const cs = solidEndRaw < rangeEnd ? solidEndRaw : rangeEnd
+                        const solidEndIdx = days.findIndex(d => toDateStr(d) === cs)
+                        if (solidEndIdx !== -1) {
+                          solidWidthPct = Math.min(100, Math.max(0, ((solidEndIdx - startIdx + 1) / wrapperSpan) * 100))
+                        }
+                      }
+                      const deltaWidthPct = 100 - solidWidthPct
+
                       const tooltip = [
                         `${r.title} (${r.start_date ?? '시작일 미정'} ~ ${r.due_date})${businessDaysLabel}`,
+                        ...(hasActual ? [`실제 완료일: ${r.actual_due_date}${varianceLabel}`] : []),
                         ...history.map((h, i) =>
                           `${i === 0 ? '[최초]' : `[변경 ${i}]`} ${h.start_date ?? '미정'} ~ ${h.due_date ?? '미정'}${h.reason ? ` (사유: ${h.reason})` : ''}`
                         ),
@@ -318,10 +349,22 @@ export default function GlobalTimeline({ requests, onSelectIssue, expandedTaskId
                             type="button"
                             onClick={() => onSelectIssue(r)}
                             title={tooltip}
-                            className={`absolute inset-0 rounded-md px-2 flex items-center text-[11px] font-medium text-white truncate text-left hover:brightness-95 transition-all ${STATUS_BAR_COLOR[r.status]} ${hasStart ? '' : 'opacity-60 border border-dashed border-white/70'}`}
+                            className={`absolute top-0 h-full ${deltaWidthPct > 0 ? 'rounded-l-md' : 'rounded-md'} px-2 flex items-center text-[11px] font-medium text-white truncate text-left hover:brightness-95 transition-all ${STATUS_BAR_COLOR[r.status]} ${hasStart ? '' : 'opacity-60 border border-dashed border-white/70'}`}
+                            style={{ left: 0, width: `${solidWidthPct}%` }}
                           >
-                            {r.title}{businessDaysLabel && <span className="opacity-80 font-normal">{businessDaysLabel}</span>}
+                            {r.title}{businessDaysLabel && <span className="opacity-80 font-normal">{businessDaysLabel}</span>}{varianceLabel && <span className="opacity-90 font-semibold">{varianceLabel}</span>}
                           </button>
+                          {deltaWidthPct > 0 && (
+                            <button
+                              type="button"
+                              onClick={() => onSelectIssue(r)}
+                              title={tooltip}
+                              className={`absolute top-0 h-full rounded-r-md border-2 border-dashed ${
+                                late ? 'bg-red-400/70 border-red-600' : 'bg-gray-300/70 border-gray-400'
+                              }`}
+                              style={{ left: `${solidWidthPct}%`, width: `${deltaWidthPct}%` }}
+                            />
+                          )}
                           {hasHistory && (
                             <button
                               type="button"
@@ -399,6 +442,12 @@ export default function GlobalTimeline({ requests, onSelectIssue, expandedTaskId
         </span>
         <span className="flex items-center gap-1">
           <span className="text-[10px]">⚠️</span>일정 변경 이력 있음 (아이콘 클릭 시 상세 펼침)
+        </span>
+        <span className="flex items-center gap-1">
+          <span className="w-2.5 h-2.5 rounded-sm inline-block bg-red-400/70 border border-dashed border-red-600" />예정보다 초과
+        </span>
+        <span className="flex items-center gap-1">
+          <span className="w-2.5 h-2.5 rounded-sm inline-block bg-gray-300/70 border border-dashed border-gray-400" />예정보다 단축
         </span>
       </div>
 

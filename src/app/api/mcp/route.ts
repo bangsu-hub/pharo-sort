@@ -329,6 +329,27 @@ const handler = createMcpHandler(
     )
 
     server.registerTool(
+      'ps_set_actual_due_date',
+      {
+        title: '실제 완료일 변경',
+        description: '업무의 실제 완료일을 설정하거나 삭제합니다.',
+        inputSchema: {
+          user_name:       z.string().describe('처리자 이름 (변경 이력에 기록됨)'),
+          id:              z.number().int().describe('업무 ID'),
+          actual_due_date: z.string().nullable().describe('실제 완료일 (YYYY-MM-DD), null이면 삭제'),
+        },
+      },
+      async ({ user_name, id, actual_due_date }) => {
+        try {
+          const updated = await patchRequest(id, { actual_due_date } as Partial<PSRequest>, user_name)
+          return updated ? text(updated) : errorText(`업무 #${id}를 찾을 수 없습니다.`)
+        } catch (e) {
+          return errorText(e instanceof Error ? e.message : String(e))
+        }
+      }
+    )
+
+    server.registerTool(
       'ps_set_start_date',
       {
         title: '기획시작일자 변경',
