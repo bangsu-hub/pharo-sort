@@ -46,9 +46,21 @@ export async function syncJiraIssues(): Promise<JiraSyncSummary> {
   }
 
   for (const issue of toUpdate) {
+    const patch: Record<string, unknown> = { jira_link: issue.jira_link, jira_status: issue.jira_status }
+
+    // 지라 상태가 'STG 테스트요청'으로 새로 진입하면, 아직 테스트 단계를 시작 안 한 건에 한해
+    // 테스트 진행상태를 '테스트 대기'로 자동 전환해 기획→테스트 단계가 자연스럽게 이어지게 한다.
+    if (issue.jira_status === 'STG 테스트요청') {
+      const { data: before } = await supabase
+        .from('requests').select('jira_status, test_status').eq('jira_key', issue.jira_key).single()
+      if (before && before.jira_status !== 'STG 테스트요청' && !before.test_status) {
+        patch.test_status = '테스트 대기'
+      }
+    }
+
     await supabase
       .from('requests')
-      .update({ jira_link: issue.jira_link, jira_status: issue.jira_status })
+      .update(patch)
       .eq('jira_key', issue.jira_key)
   }
 

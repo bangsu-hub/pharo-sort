@@ -1,13 +1,16 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { Request, Status, Priority } from '@/types'
+import { Request, Status, TestStatus, Priority } from '@/types'
 import StatusBadge from './StatusBadge'
+import TestStatusBadge from './TestStatusBadge'
 import JiraStatusBadge from './JiraStatusBadge'
-import { isAfter, parseISO, startOfToday, differenceInDays } from 'date-fns'
+import { isAfter, parseISO, startOfToday } from 'date-fns'
 import { TEAM_MEMBERS, REQUEST_TEAMS } from '@/lib/constants'
+import { toDateStr, businessDaysDiff } from '@/lib/weekUtils'
 
 const STATUSES: Status[] = ['대기', '검토중', '기획중', '완료', '보류']
+const TEST_STATUSES: TestStatus[] = ['테스트 대기', '테스트 중', '테스트 완료']
 const PRIORITIES: Priority[] = ['★', '★★', '★★★']
 const STATUS_ORDER: Record<string, number> = { '대기': 0, '검토중': 1, '기획중': 2, '완료': 3, '보류': 4 }
 
@@ -17,24 +20,30 @@ const PRIORITY_STYLE: Record<string, string> = {
   '★★★': 'text-red-500 font-bold',
 }
 
-type SortKey = 'id' | 'status' | 'due_date' | 'deploy_date' | 'request_date' | 'title' | 'summary' | 'assignee' | 'requester' | 'jira_status' | 'jira_key' | 'priority'
+type SortKey = 'id' | 'status' | 'due_date' | 'actual_due_date' | 'deploy_date' | 'request_date' | 'title' | 'summary' | 'assignee' | 'requester' | 'jira_status' | 'jira_key' | 'priority'
 type SortDir = 'asc' | 'desc' | null
 
 function getSortValue(r: Request, key: SortKey): string | number | null {
   switch (key) {
-    case 'id':           return r.id
-    case 'status':       return STATUS_ORDER[r.status] ?? 99
-    case 'due_date':     return r.due_date
-    case 'deploy_date':  return r.deploy_date
-    case 'request_date': return r.request_date
-    case 'title':        return r.title
-    case 'summary':      return r.summary
-    case 'assignee':     return r.assignee || null
-    case 'requester':    return r.requester
-    case 'jira_status':  return r.jira_status
-    case 'jira_key':     return r.jira_key
-    case 'priority':     return r.priority
+    case 'id':              return r.id
+    case 'status':          return STATUS_ORDER[r.status] ?? 99
+    case 'due_date':        return r.due_date
+    case 'actual_due_date': return r.actual_due_date
+    case 'deploy_date':     return r.deploy_date
+    case 'request_date':    return r.request_date
+    case 'title':           return r.title
+    case 'summary':         return r.summary
+    case 'assignee':        return r.assignee || null
+    case 'requester':       return r.requester
+    case 'jira_status':     return r.jira_status
+    case 'jira_key':        return r.jira_key
+    case 'priority':        return r.priority
   }
+}
+
+/** 기획이 '완료'인데 테스트 일정이 존재하면, 그 시점부터는 테스트진행상태를 대표 상태로 노출한다 */
+function effectiveTestPhase(r: Request) {
+  return r.status === '완료' && r.test_status ? r.test_status : null
 }
 
 // ← 컴포넌트 밖으로 이동 (리렌더링마다 새 타입으로 인식되는 문제 방지)
@@ -94,8 +103,10 @@ interface Props {
   onEdit: (r: Request) => void
   onDeleteSingle: (r: Request) => void
   onStatusChange: (id: number, status: Status) => void
+  onTestStatusChange: (id: number, testStatus: TestStatus) => void
   onAssigneeChange: (id: number, assignee: string) => void
   onDueDateChange: (id: number, date: string | null) => void
+  onActualDueDateChange: (id: number, date: string | null) => void
   onDeployDateChange: (id: number, date: string | null) => void
   onTeamChange: (id: number, team: string) => void
   onPriorityChange: (id: number, priority: string) => void
@@ -106,9 +117,10 @@ function isOverdue(r: Request): boolean {
   if (!r.due_date || r.status === '완료') return false
   return isAfter(startOfToday(), parseISO(r.due_date))
 }
+/** 영업일(주말/공휴일 제외) 기준 D-day. 미래면 양수(D-N), 과거면 음수(D+N) */
 function daysLeft(due: string | null): number | null {
   if (!due) return null
-  return differenceInDays(parseISO(due), startOfToday())
+  return businessDaysDiff(toDateStr(new Date()), due)
 }
 function isNewJiraItem(r: Request): boolean {
   if (!r.jira_key || !r.created_at) return false
@@ -121,7 +133,7 @@ export default function RequestGrid({
   requests, selectedIds,
   onToggleSelect, onToggleSelectAll,
   onEdit, onDeleteSingle,
-  onStatusChange, onAssigneeChange, onDueDateChange, onDeployDateChange, onTeamChange, onPriorityChange,
+  onStatusChange, onTestStatusChange, onAssigneeChange, onDueDateChange, onActualDueDateChange, onDeployDateChange, onTeamChange, onPriorityChange,
   onCreateJiraIssue,
 }: Props) {
   const allSelected = requests.length > 0 && requests.every(r => selectedIds.has(r.id))
@@ -190,6 +202,7 @@ export default function RequestGrid({
           const days      = daysLeft(r.due_date)
           const isChecked = selectedIds.has(r.id)
           const isNew     = isNewJiraItem(r)
+          const testPhase = effectiveTestPhase(r)
 
           return (
             <div key={r.id}
@@ -212,7 +225,7 @@ export default function RequestGrid({
                     {overdue && <span className="ml-1 inline-block text-xs font-bold bg-red-500 text-white rounded px-1">D+{Math.abs(days ?? 0)}</span>}
                   </button>
                   <div className="flex flex-wrap items-center gap-1.5 mt-1">
-                    <StatusBadge status={r.status} />
+                    {testPhase ? <TestStatusBadge status={testPhase} /> : <StatusBadge status={r.status} />}
                     <span className={`text-xs ${PRIORITY_STYLE[r.priority]}`}>{r.priority}</span>
                     {r.jira_key && (
                       <a href={r.jira_link ?? '#'} target="_blank" rel="noopener noreferrer"
@@ -251,13 +264,22 @@ export default function RequestGrid({
                   </select>
                 </div>
 
-                {/* 기획진행상태 */}
+                {/* 기획/테스트진행상태 */}
                 <div>
-                  <p className="text-gray-400 mb-0.5">기획진행상태</p>
+                  <p className="text-gray-400 mb-0.5">기획/테스트진행상태</p>
                   <select value={r.status} onChange={e => onStatusChange(r.id, e.target.value as Status)}
                     className="w-full border border-gray-200 rounded px-1.5 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-indigo-300">
                     {STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
                   </select>
+                  {testPhase && (
+                    <>
+                      <select value={testPhase} onChange={e => onTestStatusChange(r.id, e.target.value as TestStatus)}
+                        className="w-full border border-orange-200 rounded px-1.5 py-1 text-xs mt-1 focus:outline-none focus:ring-1 focus:ring-orange-300">
+                        {TEST_STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
+                      </select>
+                      <div className="mt-1"><TestStatusBadge status={testPhase} /></div>
+                    </>
+                  )}
                 </div>
 
                 {/* 기획 담당자 */}
@@ -281,6 +303,14 @@ export default function RequestGrid({
                       {days === 0 ? '오늘 마감' : days > 0 ? `D-${days}` : `D+${Math.abs(days)}`}
                     </p>
                   )}
+                </div>
+
+                {/* 실제 완료일 */}
+                <div>
+                  <p className="text-gray-400 mb-0.5">실제 완료일</p>
+                  <DateCell value={r.actual_due_date} onCommit={v => onActualDueDateChange(r.id, v)}
+                    className="w-full border rounded px-1.5 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-indigo-300 border-gray-200 text-gray-700"
+                  />
                 </div>
 
                 {/* 배포예정일 */}
@@ -334,10 +364,11 @@ export default function RequestGrid({
                   onChange={onToggleSelectAll}
                   className="w-4 h-4 accent-indigo-600 cursor-pointer" />
               </th>
-              <ThSort label="No."           active={sortKey === 'id'}           dir={sortDir} onClick={() => handleSort('id')}           className="w-12 text-center" />
-              <ThSort label="기획진행상태"    active={sortKey === 'status'}       dir={sortDir} onClick={() => handleSort('status')}       className="w-28" />
-              <ThSort label="기획 완료 예정일" active={sortKey === 'due_date'}     dir={sortDir} onClick={() => handleSort('due_date')}     className="w-36" />
-              <ThSort label="배포예정일"      active={sortKey === 'deploy_date'}  dir={sortDir} onClick={() => handleSort('deploy_date')}  className="w-32" />
+              <ThSort label="No."             active={sortKey === 'id'}              dir={sortDir} onClick={() => handleSort('id')}              className="w-12 text-center" />
+              <ThSort label="기획/테스트진행상태" active={sortKey === 'status'}          dir={sortDir} onClick={() => handleSort('status')}          className="w-28" />
+              <ThSort label="기획 완료 예정일"   active={sortKey === 'due_date'}        dir={sortDir} onClick={() => handleSort('due_date')}        className="w-36" />
+              <ThSort label="실제 완료일"      active={sortKey === 'actual_due_date'} dir={sortDir} onClick={() => handleSort('actual_due_date')} className="w-36" />
+              <ThSort label="배포예정일"       active={sortKey === 'deploy_date'}     dir={sortDir} onClick={() => handleSort('deploy_date')}     className="w-32" />
               <ThSort label="등록일자"        active={sortKey === 'request_date'} dir={sortDir} onClick={() => handleSort('request_date')} className="w-24" />
               <ThSort label="기획건명"        active={sortKey === 'title'}        dir={sortDir} onClick={() => handleSort('title')}        className="min-w-[200px]" />
               <ThSort label="내용 요약"       active={sortKey === 'summary'}      dir={sortDir} onClick={() => handleSort('summary')}      className="min-w-[160px]" />
@@ -356,6 +387,7 @@ export default function RequestGrid({
               const days      = daysLeft(r.due_date)
               const isChecked = selectedIds.has(r.id)
               const isNew     = isNewJiraItem(r)
+              const testPhase = effectiveTestPhase(r)
               const rowCls = isChecked ? 'bg-indigo-50' : overdue ? 'row-overdue' : done ? 'row-done' : 'row-normal'
 
               return (
@@ -372,7 +404,14 @@ export default function RequestGrid({
                         className="text-xs border-0 bg-transparent focus:outline-none cursor-pointer">
                         {STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
                       </select>
-                      <StatusBadge status={r.status} />
+                      {testPhase && (
+                        <select value={testPhase} onChange={e => onTestStatusChange(r.id, e.target.value as TestStatus)}
+                          onClick={e => e.stopPropagation()}
+                          className="text-xs border-0 bg-transparent focus:outline-none cursor-pointer text-orange-600">
+                          {TEST_STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
+                        </select>
+                      )}
+                      {testPhase ? <TestStatusBadge status={testPhase} /> : <StatusBadge status={r.status} />}
                     </div>
                   </td>
                   <td>
@@ -385,6 +424,12 @@ export default function RequestGrid({
                         {days === 0 ? '오늘 마감' : days > 0 ? `D-${days}` : `D+${Math.abs(days)}`}
                       </p>
                     )}
+                  </td>
+                  <td>
+                    <DateCell value={r.actual_due_date} onCommit={v => onActualDueDateChange(r.id, v)}
+                      onClick={e => e.stopPropagation()}
+                      className="text-xs border rounded px-1.5 py-1 focus:outline-none focus:ring-2 focus:ring-indigo-300 w-full border-gray-200 text-gray-600"
+                    />
                   </td>
                   <td>
                     <DateCell value={r.deploy_date} onCommit={v => onDeployDateChange(r.id, v)}

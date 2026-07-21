@@ -1,11 +1,12 @@
 'use client'
 
 import { useState } from 'react'
-import { FilterState, Priority, Status } from '@/types'
+import { FilterState, Priority, Status, TestStatus } from '@/types'
 import { TEAM_MEMBERS, REQUEST_TEAMS } from '@/lib/constants'
 
-const STATUSES: Status[]     = ['대기', '검토중', '기획중', '완료', '보류']
-const PRIORITIES: Priority[] = ['★', '★★', '★★★']
+const STATUSES: Status[]         = ['대기', '검토중', '기획중', '완료', '보류']
+const TEST_STATUSES: TestStatus[] = ['테스트 대기', '테스트 중', '테스트 완료']
+const PRIORITIES: Priority[]     = ['★', '★★', '★★★']
 
 // Jira 보드 상태 목록 (API 반환값 기준)
 const JIRA_STATUSES = [
@@ -33,7 +34,7 @@ export default function FilterBar({ filters, onChange, onReset, currentUser }: P
     onChange({ ...filters, [key]: value })
 
   const hasActive =
-    filters.team || filters.status || filters.assignee ||
+    filters.team || filters.status || filters.testStatus || filters.assignee ||
     filters.priority || filters.search || filters.jiraStatus ||
     filters.unassignedOnly || filters.excludeDone || filters.excludeWaiting ||
     filters.myWeekOnly
@@ -99,6 +100,16 @@ export default function FilterBar({ filters, onChange, onReset, currentUser }: P
         >
           <option value="">전체 기획진행상태</option>
           {STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
+        </select>
+
+        {/* 테스트진행상태 */}
+        <select
+          value={filters.testStatus}
+          onChange={e => update('testStatus', e.target.value)}
+          className="text-sm border border-gray-200 rounded-md px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-300"
+        >
+          <option value="">전체 테스트진행상태</option>
+          {TEST_STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
         </select>
 
         {/* 담당자 */}

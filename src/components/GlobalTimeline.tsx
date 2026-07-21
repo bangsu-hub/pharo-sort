@@ -1,7 +1,8 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { Request, Status } from '@/types'
+import { Request, Status, TestStatus } from '@/types'
+import { toDateStr, KR_HOLIDAYS, countBusinessDays } from '@/lib/weekUtils'
 
 const MEMBERS = ['구자영', '윤난희', '방수진', '박종민', '허주희', '신지희']
 
@@ -18,36 +19,16 @@ const STATUS_BAR_COLOR: Record<Status, string> = {
 }
 
 const STATUSES: Status[] = ['대기', '검토중', '기획중', '완료', '보류']
+
+/** 테스트 구간 색상 — 배경은 통일하고, 테두리 진하기로만 진행상태를 구분한다 */
+const TEST_STATUS_COLOR: Record<TestStatus, string> = {
+  '테스트 대기': 'bg-[#FFEDD5] border-solid border-orange-400',
+  '테스트 중':   'bg-[#FFEDD5] border-solid border-orange-500',
+  '테스트 완료': 'bg-[#FFEDD5] border-solid border-orange-600',
+}
 const DAY_KR = ['일', '월', '화', '수', '목', '금', '토']
 
-/**
- * 대한민국 법정공휴일 (설날/추석 등 음력 연휴는 매년 날짜가 바뀌므로 연도별로 직접 등록).
- * 2025~2027년만 등록되어 있음 — 이후 연도는 매년 갱신 필요.
- */
-const KR_HOLIDAYS = new Set([
-  // 2025
-  '2025-01-01', '2025-01-28', '2025-01-29', '2025-01-30', '2025-03-01', '2025-03-03',
-  '2025-05-05', '2025-05-06', '2025-06-06', '2025-08-15',
-  '2025-10-03', '2025-10-05', '2025-10-06', '2025-10-07', '2025-10-08', '2025-10-09',
-  '2025-12-25',
-  // 2026
-  '2026-01-01', '2026-02-16', '2026-02-17', '2026-02-18', '2026-03-01', '2026-03-02',
-  '2026-05-05', '2026-05-24', '2026-05-25', '2026-06-03', '2026-06-06', '2026-07-17',
-  '2026-08-15', '2026-08-17', '2026-09-24', '2026-09-25', '2026-09-26',
-  '2026-10-03', '2026-10-05', '2026-10-09', '2026-12-25',
-  // 2027
-  '2027-01-01', '2027-02-06', '2027-02-07', '2027-02-08', '2027-02-09', '2027-03-01',
-  '2027-05-05', '2027-05-13', '2027-06-06', '2027-06-07', '2027-07-17',
-  '2027-08-15', '2027-08-16', '2027-09-14', '2027-09-15', '2027-09-16',
-  '2027-10-03', '2027-10-04', '2027-10-09', '2027-10-11', '2027-12-25', '2027-12-27',
-])
-
-function toDateStr(d: Date): string {
-  const y = d.getFullYear()
-  const m = String(d.getMonth() + 1).padStart(2, '0')
-  const dd = String(d.getDate()).padStart(2, '0')
-  return `${y}-${m}-${dd}`
-}
+type ViewLayer = 'all' | 'plan' | 'test'
 
 /** 날짜 구간을 현재 보이는 달력 범위에 맞춰 잘라 좌표(%)로 변환. 범위 밖이면 null */
 function clipToGrid(
@@ -65,19 +46,6 @@ function clipToGrid(
   return { left: (si / cellCount) * 100, width: Math.max(((ei - si + 1) / cellCount) * 100, 100 / cellCount) }
 }
 
-/** 시작~완료 구간의 영업일 수 (양 끝 날짜 포함, 주말/공휴일 제외) */
-function countBusinessDays(start: string, end: string): number {
-  let count = 0
-  const d = new Date(`${start}T00:00:00`)
-  const endD = new Date(`${end}T00:00:00`)
-  while (d <= endD) {
-    const dow = d.getDay()
-    if (dow !== 0 && dow !== 6 && !KR_HOLIDAYS.has(toDateStr(d))) count++
-    d.setDate(d.getDate() + 1)
-  }
-  return count
-}
-
 /** b - a (일수). 양수면 b가 더 늦음 */
 function diffDays(a: string, b: string): number {
   const da = new Date(`${a}T00:00:00`)
@@ -89,6 +57,7 @@ type ViewMode = 'week' | 'month'
 
 interface Bar {
   r: Request
+  kind: 'plan' | 'test'
   startIdx: number
   endIdx: number
   hasStart: boolean
@@ -101,6 +70,8 @@ interface Props {
   /** 일정 변경 이력 아코디언이 펼쳐진 업무 ID 집합 (부모에서 관리 — "전체 열기/닫기" 버튼과 공유하기 위함) */
   expandedTaskIds: Set<number>
   onToggleHistory: (id: number) => void
+  /** 상단 '완료 건 숨기기' 필터가 켜져 있는 상태 — 기획이 완료된 건은 기획 구간을 숨기고, 테스트가 아직 진행 중이면 테스트 구간만 보여준다 */
+  hidePlanIfDone?: boolean
 }
 
 const BAR_H = 22
@@ -108,8 +79,9 @@ const BAR_GAP = 6
 const ROW_PAD = 10
 
 /** 전체 담당자를 Y축, 기간을 X축으로 하는 통합 리소스 타임라인 (기획시작일자~기획완료예정일 막대) */
-export default function GlobalTimeline({ requests, onSelectIssue, expandedTaskIds, onToggleHistory }: Props) {
+export default function GlobalTimeline({ requests, onSelectIssue, expandedTaskIds, onToggleHistory, hidePlanIfDone = false }: Props) {
   const [viewMode, setViewMode] = useState<ViewMode>('month')
+  const [viewLayer, setViewLayer] = useState<ViewLayer>('all')
   const [offset, setOffset] = useState(0)
   const [unplottableOpen, setUnplottableOpen] = useState(false)
   const [sortByAssignee, setSortByAssignee] = useState(false)
@@ -156,36 +128,46 @@ export default function GlobalTimeline({ requests, onSelectIssue, expandedTaskId
 
   const laneRows = useMemo(() => {
     return MEMBERS.map(name => {
-      const memberBars = requests
-        .filter(r =>
-          r.assignee === name &&
-          r.due_date &&
-          r.due_date >= rangeStart &&
-          (r.start_date ?? r.due_date) <= rangeEnd
-        )
-        .map(r => {
+      const memberRequests = requests.filter(r => r.assignee === name)
+
+      type RawBar = { r: Request; kind: 'plan' | 'test'; startIdx: number; endIdx: number; hasStart: boolean }
+      const rawBars: RawBar[] = []
+
+      memberRequests.forEach(r => {
+        // 기획 구간 — '테스트 일정'만 보기 모드이거나, '완료 건 숨기기'가 켜진 상태에서 기획이 이미 완료된 건이면 숨긴다.
+        if (viewLayer !== 'test' && !(hidePlanIfDone && r.status === '완료') &&
+            r.due_date && r.due_date >= rangeStart && (r.start_date ?? r.due_date) <= rangeEnd) {
           const hasStart = !!r.start_date
           // 기획시작일자 미입력 건(대개 '대기' 상태)은 구간 전체를 채우면 시각적으로 어지러우므로
           // 기획완료예정일 위치에 마커 하나로만 표기한다.
-          const start = hasStart
-            ? (r.start_date! > rangeStart ? r.start_date! : rangeStart)
-            : r.due_date!
-          // 실제 완료일이 예정일보다 늦으면(초과), 레인 배치도 그만큼 넓게 예약해야 다음 업무와 안 겹친다.
-          const outerEndRaw = r.actual_due_date && r.actual_due_date > r.due_date! ? r.actual_due_date : r.due_date!
+          const start = hasStart ? (r.start_date! > rangeStart ? r.start_date! : rangeStart) : r.due_date!
+          // 실제 완료일 초과분까지 고려해서 레인을 예약해야 다음 업무와 안 겹친다.
+          let outerEndRaw = r.due_date!
+          if (r.actual_due_date && r.actual_due_date > outerEndRaw) outerEndRaw = r.actual_due_date
           const end = outerEndRaw < rangeEnd ? outerEndRaw : rangeEnd
           const startIdx = days.findIndex(d => toDateStr(d) === start)
           const endIdx = days.findIndex(d => toDateStr(d) === end)
-          return {
-            r,
-            startIdx: startIdx === -1 ? 0 : startIdx,
-            endIdx: endIdx === -1 ? days.length - 1 : endIdx,
-            hasStart,
+          rawBars.push({ r, kind: 'plan', startIdx: startIdx === -1 ? 0 : startIdx, endIdx: endIdx === -1 ? days.length - 1 : endIdx, hasStart })
+        }
+
+        // 테스트 구간 — 기획과 전혀 다른 시기(예: 기획 3월/테스트 5월)에 있을 수 있으므로,
+        // 같은 막대에 얹지 않고 자기 자신의 실제 날짜 위치에 독립된 막대로 표시한다.
+        if (viewLayer !== 'plan' && r.test_start_date && r.test_due_date &&
+            r.test_due_date >= rangeStart && r.test_start_date <= rangeEnd) {
+          const start = r.test_start_date > rangeStart ? r.test_start_date : rangeStart
+          const end = r.test_due_date < rangeEnd ? r.test_due_date : rangeEnd
+          const startIdx = days.findIndex(d => toDateStr(d) === start)
+          const endIdx = days.findIndex(d => toDateStr(d) === end)
+          if (startIdx !== -1 && endIdx !== -1) {
+            rawBars.push({ r, kind: 'test', startIdx, endIdx, hasStart: true })
           }
-        })
-        .sort((a, b) => a.startIdx - b.startIdx)
+        }
+      })
+
+      rawBars.sort((a, b) => a.startIdx - b.startIdx)
 
       const laneEnds: number[] = []
-      const bars: Bar[] = memberBars.map(b => {
+      const bars: Bar[] = rawBars.map(b => {
         let lane = laneEnds.findIndex(end => end < b.startIdx)
         if (lane === -1) {
           lane = laneEnds.length
@@ -198,7 +180,7 @@ export default function GlobalTimeline({ requests, onSelectIssue, expandedTaskId
 
       return { name, bars, laneCount: Math.max(laneEnds.length, 1) }
     })
-  }, [requests, days, rangeStart, rangeEnd])
+  }, [requests, days, rangeStart, rangeEnd, viewLayer, hidePlanIfDone])
 
   const unplottable = useMemo(
     () => requests.filter(r => !r.assignee || !r.due_date),
@@ -246,6 +228,15 @@ export default function GlobalTimeline({ requests, onSelectIssue, expandedTaskId
             className={`text-xs font-medium px-3 py-1 rounded-md transition-colors ${viewMode === 'month' ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-500'}`}>
             월간
           </button>
+        </div>
+
+        <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1">
+          {([['all', '전체 보기'], ['plan', '기획 일정'], ['test', '테스트 일정']] as const).map(([v, label]) => (
+            <button key={v} onClick={() => setViewLayer(v)}
+              className={`text-xs font-medium px-3 py-1 rounded-md transition-colors ${viewLayer === v ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-500'}`}>
+              {label}
+            </button>
+          ))}
         </div>
 
         <p className="text-xs text-gray-400 ml-auto hidden md:block">기획시작일자~기획완료예정일 구간 · 막대 클릭 시 수정</p>
@@ -306,11 +297,32 @@ export default function GlobalTimeline({ requests, onSelectIssue, expandedTaskId
                       <div className="absolute inset-0 flex items-center">
                         <span className="text-[11px] text-gray-400 bg-gray-100/80 px-2.5 py-1 rounded-full border border-dashed border-gray-200">일정 없음</span>
                       </div>
-                    ) : bars.map(({ r, startIdx, endIdx, hasStart, lane }) => {
-                      const history = r.schedule_history ?? []
-                      const hasHistory = history.length > 0
+                    ) : bars.map(({ r, kind, startIdx, endIdx, hasStart, lane }) => {
                       const barLeft = (startIdx / cellCount) * 100
                       const barWidth = Math.max(((endIdx - startIdx + 1) / cellCount) * 100, 100 / cellCount)
+
+                      // 테스트 구간 — 기획과 시기가 전혀 다를 수 있어(예: 기획 3월/테스트 5월) 같은 막대에
+                      // 얹지 않고, 일반 업무 막대와 동일하게 자기 날짜 위치에 제목/영업일수까지 다 보이는 독립 막대로 표시한다.
+                      if (kind === 'test') {
+                        const testBusinessDays = countBusinessDays(r.test_start_date!, r.test_due_date!)
+                        const testTooltip = `${r.title} - 테스트 (${r.test_start_date} ~ ${r.test_due_date}) (영업일 ${testBusinessDays}일)${r.test_status ? ` [${r.test_status}]` : ''}`
+                        return (
+                          <div key={`${r.id}-test`} className="absolute" style={{ left: `${barLeft}%`, width: `${barWidth}%`, top: lane * (BAR_H + BAR_GAP), height: BAR_H }}>
+                            <button
+                              type="button"
+                              onClick={() => onSelectIssue(r)}
+                              title={testTooltip}
+                              className={`absolute top-0 left-0 w-full h-full rounded-md border-2 px-2 flex items-center text-[11px] font-medium text-black truncate text-left hover:brightness-95 transition-all ${TEST_STATUS_COLOR[r.test_status ?? '테스트 대기']}`}
+                            >
+                              <span className="opacity-90 font-normal mr-1 shrink-0">[테스트]</span>{r.title}
+                              <span className="opacity-80 font-normal"> (영업일 {testBusinessDays}일){r.test_status ? ` · ${r.test_status}` : ''}</span>
+                            </button>
+                          </div>
+                        )
+                      }
+
+                      const history = r.schedule_history ?? []
+                      const hasHistory = history.length > 0
                       const businessDays = hasStart && r.start_date && r.due_date
                         ? countBusinessDays(r.start_date, r.due_date)
                         : null
@@ -325,16 +337,14 @@ export default function GlobalTimeline({ requests, onSelectIssue, expandedTaskId
                       const varianceLabel = late ? ` (예정보다 ${varianceDays}일 초과)` : early ? ` (예정보다 ${-varianceDays}일 단축)` : ''
 
                       const wrapperSpan = endIdx - startIdx + 1
-                      let solidWidthPct = 100
-                      if (late || early) {
-                        const solidEndRaw = early ? r.actual_due_date! : r.due_date!
-                        const cs = solidEndRaw < rangeEnd ? solidEndRaw : rangeEnd
-                        const solidEndIdx = days.findIndex(d => toDateStr(d) === cs)
-                        if (solidEndIdx !== -1) {
-                          solidWidthPct = Math.min(100, Math.max(0, ((solidEndIdx - startIdx + 1) / wrapperSpan) * 100))
-                        }
+                      const dateToWidthPct = (dateRaw: string) => {
+                        const clipped = dateRaw < rangeEnd ? dateRaw : rangeEnd
+                        const idx = days.findIndex(d => toDateStr(d) === clipped)
+                        return idx !== -1 ? Math.min(100, Math.max(0, ((idx - startIdx + 1) / wrapperSpan) * 100)) : 100
                       }
-                      const deltaWidthPct = 100 - solidWidthPct
+                      const planWidthPct = dateToWidthPct(late ? r.actual_due_date! : r.due_date!)
+                      const solidWidthPct = (late || early) ? dateToWidthPct(early ? r.actual_due_date! : r.due_date!) : planWidthPct
+                      const deltaWidthPct = Math.max(0, planWidthPct - solidWidthPct)
 
                       const tooltip = [
                         `${r.title} (${r.start_date ?? '시작일 미정'} ~ ${r.due_date})${businessDaysLabel}`,
@@ -359,7 +369,7 @@ export default function GlobalTimeline({ requests, onSelectIssue, expandedTaskId
                               type="button"
                               onClick={() => onSelectIssue(r)}
                               title={tooltip}
-                              className={`absolute top-0 h-full rounded-r-md border-2 border-dashed ${
+                              className={`absolute top-0 h-full border-2 border-dashed ${planWidthPct >= 100 ? 'rounded-r-md' : ''} ${
                                 late ? 'bg-red-400/70 border-red-600' : 'bg-gray-300/70 border-gray-400'
                               }`}
                               style={{ left: `${solidWidthPct}%`, width: `${deltaWidthPct}%` }}
@@ -448,6 +458,9 @@ export default function GlobalTimeline({ requests, onSelectIssue, expandedTaskId
         </span>
         <span className="flex items-center gap-1">
           <span className="w-2.5 h-2.5 rounded-sm inline-block bg-gray-300/70 border border-dashed border-gray-400" />예정보다 단축
+        </span>
+        <span className="flex items-center gap-1 ml-2">
+          <span className="w-2.5 h-2.5 rounded-sm inline-block bg-[#FFEDD5] border border-orange-500" />테스트 기간
         </span>
       </div>
 

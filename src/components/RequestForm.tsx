@@ -1,11 +1,12 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { Request, RequestInput, ScheduleChange, Status, Priority } from '@/types'
+import { Request, RequestInput, ScheduleChange, Status, Priority, TestStatus } from '@/types'
 import { TEAM_MEMBERS, REQUEST_TEAMS } from '@/lib/constants'
 
-const STATUSES: Status[]     = ['대기', '검토중', '기획중', '완료', '보류']
-const PRIORITIES: Priority[] = ['★', '★★', '★★★']
+const STATUSES: Status[]         = ['대기', '검토중', '기획중', '완료', '보류']
+const PRIORITIES: Priority[]     = ['★', '★★', '★★★']
+const TEST_STATUSES: TestStatus[] = ['테스트 대기', '테스트 중', '테스트 완료']
 
 const IMAGE_MARKDOWN = /!\[[^\]]*\]\(([^)]+)\)/g
 
@@ -26,6 +27,9 @@ const EMPTY: RequestInput = {
   start_date: null,
   due_date: null,
   actual_due_date: null,
+  test_start_date: null,
+  test_due_date: null,
+  test_status: null,
   deploy_date: null,
   jira_link: null,
   jira_key: null,
@@ -78,6 +82,7 @@ export default function RequestForm({ initial, currentUser, onSave, onClose }: P
   const [uploading, setUploading] = useState(false)
   const [uploadError, setUploadError] = useState<string | null>(null)
   const [previewImage, setPreviewImage] = useState<string | null>(null)
+  const [testSectionOpen, setTestSectionOpen] = useState(false)
   const summaryRef = useRef<HTMLTextAreaElement>(null)
 
   useEffect(() => {
@@ -85,12 +90,35 @@ export default function RequestForm({ initial, currentUser, onSave, onClose }: P
       const { id, created_at, updated_at, ...rest } = initial
       void id; void created_at; void updated_at
       setForm({ ...rest, schedule_history: rest.schedule_history ?? [] })
+      setTestSectionOpen(!!(rest.test_start_date || rest.test_due_date || rest.test_status))
     } else {
       setForm({ ...EMPTY, request_date: new Date().toISOString().slice(0, 10) })
+      setTestSectionOpen(false)
     }
     setDraftChanges([])
     setErrors({})
   }, [initial])
+
+  /** '+ 테스트 업무 추가' 클릭 시 섹션을 펼치고, 바로 일정을 쓸 수 있게 시작일/상태를 기본값으로 채워준다.
+   * 기획과 테스트 일정은 겹칠 수 없으므로, 기본 시작일은 오늘과 기획 완료 예정일 중 늦은 날짜로 잡는다. */
+  const openTestSection = () => {
+    setTestSectionOpen(true)
+    setForm(f => {
+      const today = new Date().toISOString().slice(0, 10)
+      const defaultStart = f.due_date && f.due_date > today ? f.due_date : today
+      return {
+        ...f,
+        test_start_date: f.test_start_date ?? defaultStart,
+        test_status: f.test_status ?? '테스트 대기',
+      }
+    })
+  }
+
+  /** 잘못 추가한 테스트 일정을 통째로 지우고 다시 '+ 테스트 업무 추가' 버튼 상태로 되돌린다 */
+  const removeTestSection = () => {
+    setTestSectionOpen(false)
+    setForm(f => ({ ...f, test_start_date: null, test_due_date: null, test_status: null }))
+  }
 
   const update = (key: keyof RequestInput, value: string | null) =>
     setForm(f => ({ ...f, [key]: value }))
@@ -175,16 +203,30 @@ export default function RequestForm({ initial, currentUser, onSave, onClose }: P
 
   /** '기획중'이 아니었다가 '기획중'으로 바뀌는 순간 기획시작일자가 비어있으면 오늘 날짜로 자동 세팅 (이미 값이 있으면 유지) */
   const handleStatusChange = (next: Status) => {
-    setForm(f => ({
-      ...f,
-      status: next,
-      start_date: f.status !== '기획중' && next === '기획중' && !f.start_date
-        ? new Date().toISOString().slice(0, 10)
-        : f.start_date,
-      actual_due_date: f.status !== '완료' && next === '완료' && !f.actual_due_date
-        ? new Date().toISOString().slice(0, 10)
-        : f.actual_due_date,
-    }))
+    const entersDone = form.status !== '완료' && next === '완료'
+    if (entersDone) setTestSectionOpen(true)
+    setForm(f => {
+      const today = new Date().toISOString().slice(0, 10)
+      // 기획과 테스트 일정은 겹칠 수 없으므로, 테스트 시작일 기본값은 오늘과 기획 완료 예정일 중 늦은 날짜로 잡는다.
+      const defaultTestStart = f.due_date && f.due_date > today ? f.due_date : today
+      return {
+        ...f,
+        status: next,
+        start_date: f.status !== '기획중' && next === '기획중' && !f.start_date
+          ? today
+          : f.start_date,
+        actual_due_date: entersDone && !f.actual_due_date
+          ? today
+          : f.actual_due_date,
+        // 기획이 완료되면 바로 이어서 테스트 단계로 넘어갈 수 있도록 테스트 시작일/상태를 기본값으로 채워준다
+        test_start_date: entersDone && !f.test_start_date
+          ? defaultTestStart
+          : f.test_start_date,
+        test_status: entersDone && !f.test_status
+          ? '테스트 대기'
+          : f.test_status,
+      }
+    })
   }
 
   const removeImage = (url: string) => {
@@ -200,6 +242,10 @@ export default function RequestForm({ initial, currentUser, onSave, onClose }: P
       if (!d.start_date || !d.due_date) e[`schedule_${i}`] = '변경된 기획시작일자/완료예정일을 모두 입력하세요.'
       if (!d.reason.trim())             e[`schedule_reason_${i}`] = '변경 사유를 입력하세요.'
     })
+    // 기획과 테스트 일정은 겹칠 수 없으므로, 테스트 시작일은 기획 완료 예정일보다 빠를 수 없다
+    if (form.test_start_date && form.due_date && form.test_start_date < form.due_date) {
+      e.test_start_date = '테스트 시작일은 기획 완료 예정일 이후여야 합니다.'
+    }
     setErrors(e)
     return Object.keys(e).length === 0
   }
@@ -264,7 +310,7 @@ export default function RequestForm({ initial, currentUser, onSave, onClose }: P
 
         {/* 폼 */}
         <form onSubmit={handleSubmit} className="px-4 md:px-6 py-4 md:py-5 space-y-4">
-          {/* Row 1: 등록일자 + 요청팀 */}
+          {/* Row 1: 등록일자 + 기획 담당자 */}
           <div className="grid grid-cols-2 gap-4">
             <Field label="등록일자" required error={errors.request_date}>
               <input
@@ -274,28 +320,28 @@ export default function RequestForm({ initial, currentUser, onSave, onClose }: P
                 className={inputCls(errors.request_date)}
               />
             </Field>
-            <Field label="요청팀">
+            <Field label="기획 담당자">
               <select
-                value={form.request_team}
-                onChange={e => update('request_team', e.target.value)}
+                value={form.assignee}
+                onChange={e => update('assignee', e.target.value)}
                 className={inputCls()}
               >
-                <option value="">미해당 (개인 업무)</option>
-                {REQUEST_TEAMS.map(t => <option key={t} value={t}>{t}</option>)}
+                <option value="">미배정</option>
+                {TEAM_MEMBERS.map(a => <option key={a} value={a}>{a}</option>)}
               </select>
             </Field>
           </div>
 
-          {/* Row 2: 요청자 + 우선순위 */}
+          {/* Row 2: 기획진행상태 + 우선순위 */}
           <div className="grid grid-cols-2 gap-4">
-            <Field label="요청자">
-              <input
-                type="text"
-                value={form.requester}
-                onChange={e => update('requester', e.target.value)}
-                placeholder="비워두면 담당자로 자동 설정"
+            <Field label="기획진행상태">
+              <select
+                value={form.status}
+                onChange={e => handleStatusChange(e.target.value as Status)}
                 className={inputCls()}
-              />
+              >
+                {STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
+              </select>
             </Field>
             <Field label="우선순위">
               <select
@@ -365,55 +411,8 @@ export default function RequestForm({ initial, currentUser, onSave, onClose }: P
             )}
           </Field>
 
-          {/* Row 3: 기획 담당자 + 기획시작일자 + 기획진행상태 */}
+          {/* 배포예정일 */}
           <div className="grid grid-cols-3 gap-4">
-            <Field label="기획 담당자">
-              <select
-                value={form.assignee}
-                onChange={e => update('assignee', e.target.value)}
-                className={inputCls()}
-              >
-                <option value="">미배정</option>
-                {TEAM_MEMBERS.map(a => <option key={a} value={a}>{a}</option>)}
-              </select>
-            </Field>
-            <Field label="기획시작일자">
-              <input
-                type="date"
-                value={form.start_date ?? ''}
-                onChange={e => update('start_date', e.target.value || null)}
-                className={inputCls()}
-              />
-            </Field>
-            <Field label="기획진행상태">
-              <select
-                value={form.status}
-                onChange={e => handleStatusChange(e.target.value as Status)}
-                className={inputCls()}
-              >
-                {STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
-              </select>
-            </Field>
-          </div>
-
-          {/* Row 4: 기획 완료 예정일 + 실제 완료일 + 배포예정일 */}
-          <div className="grid grid-cols-3 gap-4">
-            <Field label="기획 완료 예정일">
-              <input
-                type="date"
-                value={form.due_date ?? ''}
-                onChange={e => update('due_date', e.target.value || null)}
-                className={inputCls()}
-              />
-            </Field>
-            <Field label="실제 완료일">
-              <input
-                type="date"
-                value={form.actual_due_date ?? ''}
-                onChange={e => update('actual_due_date', e.target.value || null)}
-                className={inputCls()}
-              />
-            </Field>
             <Field label="배포예정일">
               <input
                 type="date"
@@ -424,105 +423,191 @@ export default function RequestForm({ initial, currentUser, onSave, onClose }: P
             </Field>
           </div>
 
-          {/* 일정 변경 이력 */}
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <span className="text-sm font-medium text-gray-700">일정 변경 이력</span>
-              <button
-                type="button"
-                onClick={addScheduleChange}
-                className="text-xs text-indigo-600 hover:text-indigo-700 font-medium"
-              >
-                + 일정 변경
-              </button>
+          {/* 기획 일정 그룹 — 기획시작일자~실제완료일과 그 변경 이력을 한 묶음으로 보이게 배경을 준다 */}
+          <div className="bg-blue-50/60 border border-blue-100 rounded-xl p-3 space-y-3">
+            {/* Row: 기획시작일자 + 기획 완료 예정일 + 실제 완료일 */}
+            <div className="grid grid-cols-3 gap-4">
+              <Field label="기획시작일자">
+                <input
+                  type="date"
+                  value={form.start_date ?? ''}
+                  onChange={e => update('start_date', e.target.value || null)}
+                  className={inputCls()}
+                />
+              </Field>
+              <Field label="기획 완료 예정일">
+                <input
+                  type="date"
+                  value={form.due_date ?? ''}
+                  onChange={e => update('due_date', e.target.value || null)}
+                  className={inputCls()}
+                />
+              </Field>
+              <Field label="실제 완료일">
+                <input
+                  type="date"
+                  value={form.actual_due_date ?? ''}
+                  onChange={e => update('actual_due_date', e.target.value || null)}
+                  className={inputCls()}
+                />
+              </Field>
             </div>
 
-            {form.schedule_history.length > 0 && (
-              <div className="space-y-1.5 bg-gray-50 rounded-md p-2.5">
-                {form.schedule_history.map((h, i) => (
-                  <div key={i} className="flex flex-wrap items-center gap-1.5">
-                    <span className="text-xs font-medium text-gray-600 shrink-0 w-14">{i === 0 ? '[최초]' : `[변경 ${i}]`}</span>
-                    <input
-                      type="date"
-                      value={h.start_date ?? ''}
-                      onChange={e => updateHistoryEntry(i, 'start_date', e.target.value)}
-                      className="text-xs border border-gray-200 rounded px-1.5 py-1 focus:outline-none focus:ring-2 focus:ring-indigo-200"
-                    />
-                    <span className="text-gray-400 text-xs">~</span>
-                    <input
-                      type="date"
-                      value={h.due_date ?? ''}
-                      onChange={e => updateHistoryEntry(i, 'due_date', e.target.value)}
-                      className="text-xs border border-gray-200 rounded px-1.5 py-1 focus:outline-none focus:ring-2 focus:ring-indigo-200"
-                    />
-                    {i > 0 && (
+            {/* 일정 변경 이력 */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-medium text-gray-700">일정 변경 이력</span>
+                <button
+                  type="button"
+                  onClick={addScheduleChange}
+                  className="text-xs text-indigo-600 hover:text-indigo-700 font-medium"
+                >
+                  + 일정 변경
+                </button>
+              </div>
+
+              {form.schedule_history.length > 0 && (
+                <div className="space-y-1.5 bg-white/70 rounded-md p-2.5">
+                  {form.schedule_history.map((h, i) => (
+                    <div key={i} className="flex flex-wrap items-center gap-1.5">
+                      <span className="text-xs font-medium text-gray-600 shrink-0 w-14">{i === 0 ? '[최초]' : `[변경 ${i}]`}</span>
+                      <input
+                        type="date"
+                        value={h.start_date ?? ''}
+                        onChange={e => updateHistoryEntry(i, 'start_date', e.target.value)}
+                        className="text-xs border border-gray-200 rounded px-1.5 py-1 focus:outline-none focus:ring-2 focus:ring-indigo-200"
+                      />
+                      <span className="text-gray-400 text-xs">~</span>
+                      <input
+                        type="date"
+                        value={h.due_date ?? ''}
+                        onChange={e => updateHistoryEntry(i, 'due_date', e.target.value)}
+                        className="text-xs border border-gray-200 rounded px-1.5 py-1 focus:outline-none focus:ring-2 focus:ring-indigo-200"
+                      />
+                      {i > 0 && (
+                        <input
+                          type="text"
+                          value={h.reason ?? ''}
+                          onChange={e => updateHistoryEntry(i, 'reason', e.target.value)}
+                          placeholder="변경 사유"
+                          className="flex-1 min-w-[120px] text-xs border border-gray-200 rounded px-1.5 py-1 focus:outline-none focus:ring-2 focus:ring-indigo-200"
+                        />
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => removeHistoryEntry(i)}
+                        className="text-xs text-gray-400 hover:text-red-500 shrink-0 ml-auto"
+                      >
+                        삭제
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {draftChanges.map((d, i) => {
+                const n = Math.max(form.schedule_history.length, 1) + i
+                return (
+                  <div key={i} className="border border-indigo-100 bg-indigo-50/40 rounded-md p-3 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-semibold text-indigo-600">변경 {n}</span>
+                      <button
+                        type="button"
+                        onClick={() => removeDraftChange(i)}
+                        className="text-xs text-gray-400 hover:text-red-500"
+                      >
+                        삭제
+                      </button>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <Field label={`기획시작일자 (변경 ${n})`} error={errors[`schedule_${i}`]}>
+                        <input
+                          type="date"
+                          value={d.start_date}
+                          onChange={e => updateDraftChange(i, 'start_date', e.target.value)}
+                          className={inputCls(errors[`schedule_${i}`])}
+                        />
+                      </Field>
+                      <Field label={`기획완료예정일 (변경 ${n})`} error={errors[`schedule_${i}`]}>
+                        <input
+                          type="date"
+                          value={d.due_date}
+                          onChange={e => updateDraftChange(i, 'due_date', e.target.value)}
+                          className={inputCls(errors[`schedule_${i}`])}
+                        />
+                      </Field>
+                    </div>
+                    <Field label="변경 사유" error={errors[`schedule_reason_${i}`]}>
                       <input
                         type="text"
-                        value={h.reason ?? ''}
-                        onChange={e => updateHistoryEntry(i, 'reason', e.target.value)}
-                        placeholder="변경 사유"
-                        className="flex-1 min-w-[120px] text-xs border border-gray-200 rounded px-1.5 py-1 focus:outline-none focus:ring-2 focus:ring-indigo-200"
-                      />
-                    )}
-                    <button
-                      type="button"
-                      onClick={() => removeHistoryEntry(i)}
-                      className="text-xs text-gray-400 hover:text-red-500 shrink-0 ml-auto"
-                    >
-                      삭제
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {draftChanges.map((d, i) => {
-              const n = Math.max(form.schedule_history.length, 1) + i
-              return (
-                <div key={i} className="border border-indigo-100 bg-indigo-50/40 rounded-md p-3 space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-semibold text-indigo-600">변경 {n}</span>
-                    <button
-                      type="button"
-                      onClick={() => removeDraftChange(i)}
-                      className="text-xs text-gray-400 hover:text-red-500"
-                    >
-                      삭제
-                    </button>
-                  </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <Field label={`기획시작일자 (변경 ${n})`} error={errors[`schedule_${i}`]}>
-                      <input
-                        type="date"
-                        value={d.start_date}
-                        onChange={e => updateDraftChange(i, 'start_date', e.target.value)}
-                        className={inputCls(errors[`schedule_${i}`])}
-                      />
-                    </Field>
-                    <Field label={`기획완료예정일 (변경 ${n})`} error={errors[`schedule_${i}`]}>
-                      <input
-                        type="date"
-                        value={d.due_date}
-                        onChange={e => updateDraftChange(i, 'due_date', e.target.value)}
-                        className={inputCls(errors[`schedule_${i}`])}
+                        value={d.reason}
+                        onChange={e => updateDraftChange(i, 'reason', e.target.value)}
+                        placeholder="예: 클라이언트 추가 요구사항 반영"
+                        className={inputCls(errors[`schedule_reason_${i}`])}
                       />
                     </Field>
                   </div>
-                  <Field label="변경 사유" error={errors[`schedule_reason_${i}`]}>
-                    <input
-                      type="text"
-                      value={d.reason}
-                      onChange={e => updateDraftChange(i, 'reason', e.target.value)}
-                      placeholder="예: 클라이언트 추가 요구사항 반영"
-                      className={inputCls(errors[`schedule_reason_${i}`])}
-                    />
-                  </Field>
-                </div>
-              )
-            })}
+                )
+              })}
+            </div>
           </div>
 
-          {/* Row 5: 지라 링크 */}
+          {/* 테스트 일정 — 기획과 시기가 다를 수 있는 별개의 업무이므로, 버튼을 눌러야 일정 입력란이 나타난다 */}
+          <div className="bg-[#FFEDD5] border border-orange-300 rounded-xl p-3 space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-sm font-medium text-gray-700">테스트 일정</span>
+              {testSectionOpen && (
+                <button
+                  type="button"
+                  onClick={removeTestSection}
+                  className="text-xs text-gray-400 hover:text-red-500"
+                >
+                  테스트 일정 삭제
+                </button>
+              )}
+            </div>
+
+            {testSectionOpen ? (
+              <div className="grid grid-cols-3 gap-4">
+                <Field label="테스트 시작일" error={errors.test_start_date}>
+                  <input
+                    type="date"
+                    value={form.test_start_date ?? ''}
+                    min={form.due_date ?? undefined}
+                    onChange={e => update('test_start_date', e.target.value || null)}
+                    className={inputCls(errors.test_start_date)}
+                  />
+                </Field>
+                <Field label="테스트 종료일">
+                  <input
+                    type="date"
+                    value={form.test_due_date ?? ''}
+                    onChange={e => update('test_due_date', e.target.value || null)}
+                    className={inputCls()}
+                  />
+                </Field>
+                <Field label="테스트 진행상태">
+                  <select
+                    value={form.test_status ?? ''}
+                    onChange={e => update('test_status', e.target.value || null)}
+                    className={inputCls()}
+                  >
+                    {TEST_STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
+                  </select>
+                </Field>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={openTestSection}
+                className="text-xs text-indigo-600 hover:text-indigo-700 font-medium border border-dashed border-indigo-200 rounded-md px-3 py-2 hover:bg-indigo-100/60 transition-colors"
+              >
+                + 테스트 업무 추가
+              </button>
+            )}
+          </div>
+
+          {/* 지라 링크 */}
           <Field label="지라 링크">
             <input
               type="url"
@@ -532,6 +617,29 @@ export default function RequestForm({ initial, currentUser, onSave, onClose }: P
               className={inputCls()}
             />
           </Field>
+
+          {/* Row: 요청팀 + 요청자 */}
+          <div className="grid grid-cols-2 gap-4">
+            <Field label="요청팀">
+              <select
+                value={form.request_team}
+                onChange={e => update('request_team', e.target.value)}
+                className={inputCls()}
+              >
+                <option value="">미해당 (개인 업무)</option>
+                {REQUEST_TEAMS.map(t => <option key={t} value={t}>{t}</option>)}
+              </select>
+            </Field>
+            <Field label="요청자">
+              <input
+                type="text"
+                value={form.requester}
+                onChange={e => update('requester', e.target.value)}
+                placeholder="비워두면 담당자로 자동 설정"
+                className={inputCls()}
+              />
+            </Field>
+          </div>
 
           {/* 버튼 */}
           <div className="flex justify-end gap-3 pt-2 border-t border-gray-100 mt-2">

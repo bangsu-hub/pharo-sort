@@ -13,7 +13,7 @@ export const MCP_READ_TOOLS: McpToolMeta[] = [
   { name: 'ps_list_my_requests',  description: '특정 담당자의 담당 건 조회' },
   { name: 'ps_workload_summary',  description: '담당자별 전체/진행중 건수 요약' },
   { name: 'ps_list_overdue',      description: '기획완료예정일 초과 + 미완료 건 조회' },
-  { name: 'ps_list_stg_required', description: 'STG 테스트요청 상태 건 조회' },
+  { name: 'ps_list_stg_required', description: '테스트 필요/진행 중 건 조회 (지라 STG 테스트요청 + 자체 등록 테스트대기/테스트중)' },
   { name: 'ps_list_activity_log', description: '등록/수정/삭제 변경 이력 조회' },
   { name: 'ps_list_feedback',     description: 'Pharo-Sort 자체 버그/개선요청/신규기능 피드백 조회' },
 ]
@@ -25,6 +25,7 @@ export const MCP_WRITE_TOOLS: McpToolMeta[] = [
   { name: 'ps_set_start_date',    description: '기획시작일자 설정/삭제' },
   { name: 'ps_set_due_date',      description: '기획완료예정일 설정/삭제' },
   { name: 'ps_set_actual_due_date', description: '실제 완료일 설정/삭제' },
+  { name: 'ps_set_test_schedule', description: '테스트 시작일/종료일/진행상태 설정 (전달한 필드만 갱신)' },
   { name: 'ps_add_schedule_change', description: '일정 변경 이력(차수) 추가 및 현재 일정 갱신' },
   { name: 'ps_delete_schedule_change', description: '일정 변경 이력 항목 삭제 (마지막 항목 삭제 시 현재 일정도 갱신)' },
   { name: 'ps_set_deploy_date',   description: '배포예정일 설정/삭제' },

@@ -168,12 +168,15 @@ const handler = createMcpHandler(
     server.registerTool(
       'ps_list_stg_required',
       {
-        title: 'STG 테스트요청 건 조회',
-        description: '기획자의 STG 테스트 진행이 필요한 건(지라 상태 = STG 테스트요청)을 조회합니다.',
+        title: '테스트 필요/진행 중 건 조회',
+        description: '테스트 단계가 필요하거나 진행 중인 건을 조회합니다. 지라 연동 건(지라 상태 = STG 테스트요청)과 자체 등록 건(테스트진행상태 = 테스트 대기/테스트 중)을 모두 포함합니다.',
         inputSchema: {},
       },
       async () => {
-        const { data, error } = await supabase.from('requests').select('*').eq('jira_status', 'STG 테스트요청')
+        const { data, error } = await supabase
+          .from('requests')
+          .select('*')
+          .or('jira_status.eq.STG 테스트요청,test_status.eq.테스트 대기,test_status.eq.테스트 중')
         if (error) return errorText(error.message)
         return text(data ?? [])
       }
@@ -342,6 +345,34 @@ const handler = createMcpHandler(
       async ({ user_name, id, actual_due_date }) => {
         try {
           const updated = await patchRequest(id, { actual_due_date } as Partial<PSRequest>, user_name)
+          return updated ? text(updated) : errorText(`업무 #${id}를 찾을 수 없습니다.`)
+        } catch (e) {
+          return errorText(e instanceof Error ? e.message : String(e))
+        }
+      }
+    )
+
+    server.registerTool(
+      'ps_set_test_schedule',
+      {
+        title: '테스트 일정 변경',
+        description: '업무의 테스트 시작일/종료일/진행상태를 설정합니다. 전달한 필드만 갱신되며, null을 넘기면 해당 필드를 지웁니다.',
+        inputSchema: {
+          user_name:       z.string().describe('처리자 이름 (변경 이력에 기록됨)'),
+          id:              z.number().int().describe('업무 ID'),
+          test_start_date: z.string().nullable().optional().describe('테스트 시작일 (YYYY-MM-DD), null이면 삭제'),
+          test_due_date:   z.string().nullable().optional().describe('테스트 종료일 (YYYY-MM-DD), null이면 삭제'),
+          test_status:     z.enum(['테스트 대기', '테스트 중', '테스트 완료']).nullable().optional().describe('테스트 진행상태, null이면 미해당으로 초기화'),
+        },
+      },
+      async ({ user_name, id, test_start_date, test_due_date, test_status }) => {
+        try {
+          const patch: Partial<PSRequest> = {}
+          if (test_start_date !== undefined) patch.test_start_date = test_start_date
+          if (test_due_date !== undefined) patch.test_due_date = test_due_date
+          if (test_status !== undefined) patch.test_status = test_status
+          if (Object.keys(patch).length === 0) return errorText('test_start_date, test_due_date, test_status 중 최소 하나는 전달해야 합니다.')
+          const updated = await patchRequest(id, patch, user_name)
           return updated ? text(updated) : errorText(`업무 #${id}를 찾을 수 없습니다.`)
         } catch (e) {
           return errorText(e instanceof Error ? e.message : String(e))

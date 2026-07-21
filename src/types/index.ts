@@ -1,5 +1,6 @@
 export type Status = '대기' | '검토중' | '기획중' | '완료' | '보류'
 export type Priority = '★' | '★★' | '★★★'
+export type TestStatus = '테스트 대기' | '테스트 중' | '테스트 완료'
 
 /** 일정 변경 차수 이력 항목. schedule_history[0]은 [최초] 계획, 이후는 [변경 N]으로 사유와 함께 기록됨 */
 export interface ScheduleChange {
@@ -21,6 +22,9 @@ export interface Request {
   start_date: string | null   // 기획 시작일자 (현재/최신 일정)
   due_date: string | null     // 기획 완료 예정일 (현재/최신 일정)
   actual_due_date: string | null  // 실제 완료일
+  test_start_date: string | null  // 테스트 시작일
+  test_due_date: string | null    // 테스트 종료일
+  test_status: TestStatus | null  // 테스트 진행상태 (null = 테스트 단계 미해당/미시작)
   deploy_date: string | null  // 배포 예정일
   jira_link: string | null
   jira_key: string | null
@@ -41,6 +45,7 @@ export interface WorkloadItem {
 export interface FilterState {
   team: string
   status: string
+  testStatus: string
   assignee: string
   search: string
   priority: string

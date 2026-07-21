@@ -44,10 +44,14 @@ export default function TimelinePage() {
 
   const handleLogout = () => { clearCurrentUser(); router.replace('/login') }
 
-  const activeRequests = useMemo(
-    () => showDone ? requests : requests.filter(r => r.status !== '완료'),
-    [requests, showDone]
-  )
+  const activeRequests = useMemo(() => {
+    if (showDone) return requests
+    // 기획이 완료됐어도 테스트가 아직 진행 중(대기/중)이면, 테스트 일정만이라도 계속 보여주기 위해 남겨둔다.
+    // (기획 구간 자체를 숨기는 처리는 GlobalTimeline에 hidePlanIfDone으로 위임)
+    return requests.filter(r =>
+      r.status !== '완료' || r.test_status === '테스트 대기' || r.test_status === '테스트 중'
+    )
+  }, [requests, showDone])
 
   const historiedTaskIds = useMemo(
     () => activeRequests.filter(r => (r.schedule_history?.length ?? 0) > 0).map(r => r.id),
@@ -205,6 +209,7 @@ export default function TimelinePage() {
           onSelectIssue={r => { setEditing(r); setShowForm(true) }}
           expandedTaskIds={expandedTaskIds}
           onToggleHistory={toggleHistory}
+          hidePlanIfDone={!showDone}
         />
 
       </main>

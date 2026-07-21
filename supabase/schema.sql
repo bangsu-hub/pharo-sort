@@ -19,6 +19,10 @@ CREATE TABLE IF NOT EXISTS requests (
   start_date    DATE          DEFAULT NULL,  -- 기획 시작일자
   due_date      DATE          DEFAULT NULL,  -- 기획 완료 예정일
   actual_due_date DATE        DEFAULT NULL,  -- 실제 완료일
+  test_start_date DATE        DEFAULT NULL,  -- 테스트 시작일
+  test_due_date   DATE        DEFAULT NULL,  -- 테스트 종료일
+  test_status     VARCHAR(20) DEFAULT NULL
+                              CHECK (test_status IS NULL OR test_status IN ('테스트 대기', '테스트 중', '테스트 완료')),
   deploy_date   DATE          DEFAULT NULL,  -- 배포 예정일
   jira_link     TEXT          DEFAULT NULL,
   jira_key      VARCHAR(50)   UNIQUE DEFAULT NULL,  -- 지라 티켓 키 (중복 방지)
@@ -34,6 +38,18 @@ ALTER TABLE requests ADD COLUMN IF NOT EXISTS deploy_date DATE DEFAULT NULL;
 ALTER TABLE requests ADD COLUMN IF NOT EXISTS start_date DATE DEFAULT NULL;
 ALTER TABLE requests ADD COLUMN IF NOT EXISTS schedule_history JSONB NOT NULL DEFAULT '[]'::jsonb;
 ALTER TABLE requests ADD COLUMN IF NOT EXISTS actual_due_date DATE DEFAULT NULL;
+ALTER TABLE requests ADD COLUMN IF NOT EXISTS test_start_date DATE DEFAULT NULL;
+ALTER TABLE requests ADD COLUMN IF NOT EXISTS test_due_date DATE DEFAULT NULL;
+ALTER TABLE requests ADD COLUMN IF NOT EXISTS test_status VARCHAR(20) DEFAULT NULL;
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint WHERE conrelid = 'requests'::regclass AND conname = 'requests_test_status_check'
+  ) THEN
+    ALTER TABLE requests ADD CONSTRAINT requests_test_status_check
+      CHECK (test_status IS NULL OR test_status IN ('테스트 대기', '테스트 중', '테스트 완료'));
+  END IF;
+END $$;
 
 -- 기존 status 체크 제약 제거 (제약 이름이 다를 수 있어 이름에 의존하지 않고 탐색 후 제거)
 -- 현재 제약은 '대기'조차 허용하지 않음 — 먼저 풀어야 아래 UPDATE가 통과됨

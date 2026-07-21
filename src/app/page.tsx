@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Request, RequestInput, Status, FilterState, WorkloadItem, FeedbackInput } from '@/types'
+import { Request, RequestInput, Status, TestStatus, FilterState, WorkloadItem, FeedbackInput } from '@/types'
 import { TEAM_MEMBERS } from '@/lib/constants'
 import { getCurrentUser, clearCurrentUser } from '@/lib/auth'
 import { isOverdue, isThisWeek, getWeekBounds } from '@/lib/weekUtils'
@@ -19,7 +19,7 @@ const MEMBER_EMOJI: Record<string, string> = {
 }
 
 const EMPTY_FILTERS: FilterState = {
-  team: '', status: '', assignee: '', priority: '', search: '',
+  team: '', status: '', testStatus: '', assignee: '', priority: '', search: '',
   jiraStatus: '', unassignedOnly: false, excludeDone: false, excludeWaiting: false,
   myWeekOnly: false,
 }
@@ -106,11 +106,14 @@ export default function HomePage() {
     const base = requests.filter(r => {
       if (filters.team           && r.request_team !== filters.team)                   return false
       if (filters.status         && r.status       !== filters.status)                 return false
+      if (filters.testStatus     && r.test_status  !== filters.testStatus)             return false
       if (filters.assignee       && r.assignee     !== filters.assignee)               return false
       if (filters.priority       && r.priority     !== filters.priority)               return false
       if (filters.jiraStatus     && r.jira_status  !== filters.jiraStatus)             return false
       if (filters.unassignedOnly && r.assignee?.trim())                                return false
-      if (filters.excludeDone    && r.status === '완료')                               return false
+      // 테스트가 아직 진행 중(대기/중)인 건은 기획만 완료됐을 뿐 마무리가 안 된 것이므로 '완료 제외' 필터에서도 계속 보여준다.
+      // 테스트까지 완료됐으면 온전히 끝난 건이므로 일반 완료 건과 동일하게 제외한다.
+      if (filters.excludeDone    && r.status === '완료' && r.test_status !== '테스트 대기' && r.test_status !== '테스트 중') return false
       if (filters.excludeWaiting && r.status === '대기')                               return false
       if (filters.myWeekOnly) {
         if (r.assignee !== currentUser)                                                return false
@@ -260,12 +263,16 @@ export default function HomePage() {
     }
     patchField(id, patch, `상태 → "${status}"`)
   }
+  const handleTestStatusChange = (id: number, test_status: TestStatus) =>
+    patchField(id, { test_status } as Partial<Request>, `테스트진행상태 → "${test_status}"`)
   const handleAssigneeChange = (id: number, assignee: string) =>
     patchField(id, { assignee }, assignee ? `담당자 → "${assignee}"` : '담당자 해제')
   const handleDueDateChange  = (id: number, due_date: string | null) =>
     patchField(id, { due_date } as Partial<Request>, due_date ? `기획 완료 예정일 → ${due_date}` : '기획 완료 예정일 삭제')
   const handleDeployDateChange = (id: number, deploy_date: string | null) =>
     patchField(id, { deploy_date } as Partial<Request>, deploy_date ? `배포예정일 → ${deploy_date}` : '배포예정일 삭제')
+  const handleActualDueDateChange = (id: number, actual_due_date: string | null) =>
+    patchField(id, { actual_due_date } as Partial<Request>, actual_due_date ? `실제 완료일 → ${actual_due_date}` : '실제 완료일 삭제')
   const handleTeamChange     = (id: number, request_team: string) =>
     patchField(id, { request_team }, `요청팀 → "${request_team}"`)
   const handlePriorityChange = (id: number, priority: string) =>
@@ -542,8 +549,10 @@ export default function HomePage() {
                 onEdit={r => { setEditing(r); setShowForm(true) }}
                 onDeleteSingle={handleDeleteSingle}
                 onStatusChange={handleStatusChange}
+                onTestStatusChange={handleTestStatusChange}
                 onAssigneeChange={handleAssigneeChange}
                 onDueDateChange={handleDueDateChange}
+                onActualDueDateChange={handleActualDueDateChange}
                 onDeployDateChange={handleDeployDateChange}
                 onTeamChange={handleTeamChange}
                 onPriorityChange={handlePriorityChange}
