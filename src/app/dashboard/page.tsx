@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Request, RequestInput, Status } from '@/types'
+import { Request, RequestInput, Status, TestStatus } from '@/types'
 import { TEAM_MEMBERS } from '@/lib/constants'
 import { getCurrentUser, clearCurrentUser } from '@/lib/auth'
 import { isOverdue, isThisWeek } from '@/lib/weekUtils'
@@ -27,6 +27,18 @@ const STATUS_BAR: Record<Status, string> = {
 }
 const STATUSES: Status[] = ['대기', '검토중', '기획중', '완료', '보류']
 
+const TEST_STATUS_TEXT: Record<TestStatus, string> = {
+  '테스트 대기': 'text-orange-500 bg-orange-50',
+  '테스트 중':   'text-orange-700 bg-orange-100',
+  '테스트 완료': 'text-orange-800 bg-orange-200',
+}
+const TEST_STATUS_BAR: Record<TestStatus, string> = {
+  '테스트 대기': 'bg-orange-300',
+  '테스트 중':   'bg-orange-500',
+  '테스트 완료': 'bg-orange-600',
+}
+const TEST_STATUSES: TestStatus[] = ['테스트 대기', '테스트 중', '테스트 완료']
+
 // 담당자별 귀여운 동물 아이콘 & 카드 색상
 const MEMBER_STYLE: Record<string, { emoji: string; bg: string; ring: string; text: string }> = {
   '구자영': { emoji: '🐰', bg: 'from-pink-50 to-pink-100',   ring: 'ring-pink-300',   text: 'text-pink-700' },
@@ -42,6 +54,7 @@ type MemberStats = {
   total: number
   active: number
   byStatus: Record<Status, number>
+  byTestStatus: Record<TestStatus, number>
   issues: Request[]
 }
 
@@ -49,15 +62,23 @@ function statusBreakdown(issues: Request[]): Record<Status, number> {
   return Object.fromEntries(STATUSES.map(s => [s, issues.filter(r => r.status === s).length])) as Record<Status, number>
 }
 
+/** 기획이 '완료'인데 테스트 일정이 존재하면, 그 시점부터는 테스트진행상태를 대표 상태로 노출한다 */
+function effectiveTestPhase(r: Request): TestStatus | null {
+  return r.status === '완료' && r.test_status ? r.test_status : null
+}
+
 /** 이슈 한 건 표시 행. showAssignee는 여러 담당자가 섞인 목록(전체 진행중 등)에서만 켠다 */
 function IssueRow({ r, showAssignee, onSelect }: { r: Request; showAssignee?: boolean; onSelect?: (r: Request) => void }) {
   const overdue = isOverdue(r)
   const isStg = r.jira_status === 'STG 테스트요청'
   const assigneeStyle = r.assignee ? MEMBER_STYLE[r.assignee] : null
+  const testPhase = effectiveTestPhase(r)
   return (
     <div className={`px-3 md:px-5 py-3 flex items-start md:items-center gap-2 md:gap-3 ${isStg ? 'bg-amber-50 border-l-4 border-amber-400' : overdue ? 'bg-red-50' : ''}`}>
       {isStg && <span className="text-base shrink-0 mt-0.5 md:mt-0" title="STG 테스트 검수 필요">🧪</span>}
-      <span className={`text-xs px-2 py-0.5 rounded-full font-medium shrink-0 mt-0.5 md:mt-0 ${STATUS_TEXT[r.status]}`}>{r.status}</span>
+      <span className={`text-xs px-2 py-0.5 rounded-full font-medium shrink-0 mt-0.5 md:mt-0 ${testPhase ? TEST_STATUS_TEXT[testPhase] : STATUS_TEXT[r.status]}`}>
+        {testPhase ?? r.status}
+      </span>
       {showAssignee && (
         assigneeStyle
           ? <span className={`text-xs font-semibold shrink-0 mt-0.5 md:mt-0 ${assigneeStyle.text}`}>{assigneeStyle.emoji} {r.assignee}</span>
@@ -180,7 +201,11 @@ export default function DashboardPage() {
       const byStatus = Object.fromEntries(
         STATUSES.map(s => [s, mine.filter(r => r.status === s).length])
       ) as Record<Status, number>
-      return { name, total: mine.length, active: mine.filter(r => r.status === '검토중' || r.status === '기획중').length, byStatus, issues: mine }
+      // 기획이 완료되고 테스트가 진행 중인 건도 상태 배분에 함께 노출한다
+      const byTestStatus = Object.fromEntries(
+        TEST_STATUSES.map(s => [s, mine.filter(r => r.status === '완료' && r.test_status === s).length])
+      ) as Record<TestStatus, number>
+      return { name, total: mine.length, active: mine.filter(r => r.status === '검토중' || r.status === '기획중').length, byStatus, byTestStatus, issues: mine }
     })
   }, [requests])
 
@@ -413,6 +438,17 @@ export default function DashboardPage() {
                       <span className="text-xs font-semibold text-gray-600 w-4 shrink-0">{m.byStatus[s]}</span>
                     </div>
                   ))}
+                  {/* 기획완료 + 테스트 진행 중인 건도 함께 노출 */}
+                  {TEST_STATUSES.filter(s => m.byTestStatus[s] > 0).map(s => (
+                    <div key={s} className="flex items-center gap-1.5">
+                      <span className="text-[10px] text-orange-500 w-16 text-right shrink-0 whitespace-nowrap">{s}</span>
+                      <div className="flex-1 h-1.5 bg-white/70 rounded-full overflow-hidden">
+                        <div className={`h-full rounded-full ${TEST_STATUS_BAR[s]}`}
+                          style={{ width: `${Math.min((m.byTestStatus[s] / Math.max(m.total, 1)) * 100, 100)}%` }} />
+                      </div>
+                      <span className="text-xs font-semibold text-gray-600 w-4 shrink-0">{m.byTestStatus[s]}</span>
+                    </div>
+                  ))}
                 </div>
 
                 {/* 업무 부하 바 */}
@@ -472,6 +508,11 @@ export default function DashboardPage() {
                   {STATUSES.map(s => m.byStatus[s] > 0 && (
                     <span key={s} className={`text-xs px-2.5 py-1 rounded-full font-medium ${STATUS_TEXT[s]}`}>
                       {s} {m.byStatus[s]}
+                    </span>
+                  ))}
+                  {TEST_STATUSES.map(s => m.byTestStatus[s] > 0 && (
+                    <span key={s} className={`text-xs px-2.5 py-1 rounded-full font-medium ${TEST_STATUS_TEXT[s]}`}>
+                      {s} {m.byTestStatus[s]}
                     </span>
                   ))}
                 </div>

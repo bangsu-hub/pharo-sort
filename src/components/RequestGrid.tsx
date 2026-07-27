@@ -354,7 +354,9 @@ export default function RequestGrid({
       </div>
 
       {/* ── 데스크톱 테이블 뷰 ── */}
-      <div className="hidden md:block overflow-auto rounded-lg border border-gray-200 shadow-sm">
+      {/* max-h + overflow-auto로 이 영역 자체가 스크롤 컨테이너가 되어야 thead의 sticky가 페이지 스크롤이 아니라
+          여기 기준으로 정상 동작한다 (바깥 페이지 스크롤에는 sticky가 안 먹는 CSS 특성 때문) */}
+      <div className="hidden md:block overflow-auto rounded-lg border border-gray-200 shadow-sm max-h-[75vh]">
         <table className="grid-table">
           <thead>
             <tr>

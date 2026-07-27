@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from 'react'
 import { Request, Status, TestStatus } from '@/types'
-import { toDateStr, KR_HOLIDAYS, countBusinessDays } from '@/lib/weekUtils'
+import { toDateStr, KR_HOLIDAYS, countBusinessDays, businessDaysDiff } from '@/lib/weekUtils'
 
 const MEMBERS = ['구자영', '윤난희', '방수진', '박종민', '허주희', '신지희']
 
@@ -44,13 +44,6 @@ function clipToGrid(
   const ei = days.findIndex(d => toDateStr(d) === ce)
   if (si === -1 || ei === -1) return null
   return { left: (si / cellCount) * 100, width: Math.max(((ei - si + 1) / cellCount) * 100, 100 / cellCount) }
-}
-
-/** b - a (일수). 양수면 b가 더 늦음 */
-function diffDays(a: string, b: string): number {
-  const da = new Date(`${a}T00:00:00`)
-  const db = new Date(`${b}T00:00:00`)
-  return Math.round((db.getTime() - da.getTime()) / 86400000)
 }
 
 type ViewMode = 'week' | 'month'
@@ -333,7 +326,7 @@ export default function GlobalTimeline({ requests, onSelectIssue, expandedTaskId
                       const hasActual = !!r.actual_due_date && !!r.due_date
                       const late = hasActual && r.actual_due_date! > r.due_date!
                       const early = hasActual && r.actual_due_date! < r.due_date!
-                      const varianceDays = hasActual ? diffDays(r.due_date!, r.actual_due_date!) : 0
+                      const varianceDays = hasActual ? businessDaysDiff(r.due_date!, r.actual_due_date!) : 0
                       const varianceLabel = late ? ` (예정보다 ${varianceDays}일 초과)` : early ? ` (예정보다 ${-varianceDays}일 단축)` : ''
 
                       const wrapperSpan = endIdx - startIdx + 1
